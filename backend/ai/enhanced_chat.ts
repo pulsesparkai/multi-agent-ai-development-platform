@@ -70,7 +70,7 @@ export const enhancedChat = api<EnhancedChatRequest, EnhancedChatResponse>(
       
       if (!apiKey) {
         console.error('No API key found:', { userID: auth.userID, provider: req.provider });
-        throw APIError.invalidArgument(`no API key found for provider: ${req.provider}`);
+        throw APIError.unauthenticated(`Please configure your ${req.provider} API key in settings to use AI features`);
       }
 
       // Get or create chat session

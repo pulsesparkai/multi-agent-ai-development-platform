@@ -258,6 +258,15 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
       onStepComplete: (step: ExecutionStep, result: any) => {
         console.log(`✅ Step completed: ${step.description}`, result);
         
+        // Show demo mode notification
+        if (result.demoMode) {
+          toast({
+            title: '🎭 Demo Mode',
+            description: 'This is a demo. Configure API keys for real AI functionality.',
+            duration: 3000,
+          });
+        }
+        
         // Update UI based on step results
         if (result.filesChanged?.length > 0) {
           setFileUpdates(prev => [
@@ -315,10 +324,23 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
       // Execute all steps with delays like I do
       await executor.executeAll(3000); // 3 second delays between steps
       
-      toast({
-        title: 'Execution Complete! 🎉',
-        description: 'All steps have been completed successfully',
-      });
+      // Check if we were in demo mode
+      const wasDemo = executor.getTodos().some(todo => 
+        todo.result?.demoMode === true
+      );
+      
+      if (wasDemo) {
+        toast({
+          title: '🎭 Demo Complete!',
+          description: 'You just saw how Leap works! Configure API keys above for real AI functionality.',
+          duration: 8000,
+        });
+      } else {
+        toast({
+          title: 'Execution Complete! 🎉',
+          description: 'All steps have been completed successfully',
+        });
+      }
     } catch (error) {
       console.error('Execution failed:', error);
       toast({
@@ -710,7 +732,10 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
             {autoApply && (
               <div className="text-xs text-muted-foreground flex items-center gap-1">
                 <Zap className="h-3 w-3" />
-                Auto-actions enabled: Files will be created and applied automatically
+                {hasApiKey 
+                  ? 'Auto-actions enabled: Files will be created and applied automatically'
+                  : '🎭 Demo Mode: Configure API keys for real AI functionality'
+                }
               </div>
             )}
           </form>
