@@ -25,6 +25,102 @@ export interface ApplyFileChangesResponse {
   errors: { filePath: string; error: string }[];
 }
 
+// Internal function for applying file changes (not an API endpoint)
+export async function applyFileChangesInternal(req: ApplyFileChangesRequest): Promise<ApplyFileChangesResponse> {
+  const appliedChanges: FileChange[] = [];
+  const errors: { filePath: string; error: string }[] = [];
+  
+  const projectDir = getProjectDirectory(req.projectId);
+  await fs.mkdir(projectDir, { recursive: true });
+
+  for (const change of req.changes) {
+    try {
+      const changeId = generateId();
+      const fullPath = path.join(projectDir, change.filePath);
+      
+      let previousContent: string | undefined;
+      
+      // Get previous content if file exists
+      try {
+        if (change.operation !== 'create') {
+          previousContent = await fs.readFile(fullPath, 'utf8');
+        }
+      } catch {
+        // File doesn't exist
+      }
+
+      // Apply the change
+      switch (change.operation) {
+        case 'create':
+        case 'update':
+          await fs.mkdir(path.dirname(fullPath), { recursive: true });
+          await fs.writeFile(fullPath, change.content || '', 'utf8');
+          break;
+          
+        case 'delete':
+          try {
+            await fs.unlink(fullPath);
+          } catch {
+            // File doesn't exist
+          }
+          break;
+      }
+
+      // Record the change in database
+      const fileChange: FileChange = {
+        id: changeId,
+        projectId: req.projectId,
+        operation: change.operation,
+        filePath: change.filePath,
+        content: change.content,
+        previousContent,
+        timestamp: new Date(),
+        applied: true,
+        source: req.source,
+        sessionId: req.sessionId
+      };
+
+      await db.exec`
+        INSERT INTO file_changes (
+          id, project_id, operation, file_path, content, previous_content, 
+          applied, source, session_id
+        ) VALUES (
+          ${changeId}, ${req.projectId}, ${change.operation}, ${change.filePath},
+          ${change.content}, ${previousContent}, true, ${req.source}, ${req.sessionId}
+        )
+      `;
+
+      // Update or create file record in database
+      if (change.operation === 'delete') {
+        await db.exec`
+          DELETE FROM files WHERE project_id = ${req.projectId} AND path = ${change.filePath}
+        `;
+      } else {
+        await db.exec`
+          INSERT INTO files (id, project_id, name, path, content, language)
+          VALUES (${generateId()}, ${req.projectId}, ${path.basename(change.filePath)}, ${change.filePath}, ${change.content || ''}, ${getLanguageFromPath(change.filePath)})
+          ON CONFLICT (project_id, path) 
+          DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+        `;
+      }
+
+      appliedChanges.push(fileChange);
+    } catch (error) {
+      errors.push({
+        filePath: change.filePath,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  // Update project timestamp
+  await db.exec`
+    UPDATE projects SET updated_at = NOW() WHERE id = ${req.projectId}
+  `;
+
+  return { appliedChanges, errors };
+}
+
 export interface GetFileDiffParams {
   projectId: string;
   filePath: string;
@@ -55,98 +151,7 @@ export const applyFileChanges = api<ApplyFileChangesRequest, ApplyFileChangesRes
       throw APIError.notFound("project not found");
     }
 
-    const appliedChanges: FileChange[] = [];
-    const errors: { filePath: string; error: string }[] = [];
-    
-    const projectDir = getProjectDirectory(req.projectId);
-    await fs.mkdir(projectDir, { recursive: true });
-
-    for (const change of req.changes) {
-      try {
-        const changeId = generateId();
-        const fullPath = path.join(projectDir, change.filePath);
-        
-        let previousContent: string | undefined;
-        
-        // Get previous content if file exists
-        try {
-          if (change.operation !== 'create') {
-            previousContent = await fs.readFile(fullPath, 'utf8');
-          }
-        } catch {
-          // File doesn't exist
-        }
-
-        // Apply the change
-        switch (change.operation) {
-          case 'create':
-          case 'update':
-            await fs.mkdir(path.dirname(fullPath), { recursive: true });
-            await fs.writeFile(fullPath, change.content || '', 'utf8');
-            break;
-            
-          case 'delete':
-            try {
-              await fs.unlink(fullPath);
-            } catch {
-              // File doesn't exist
-            }
-            break;
-        }
-
-        // Record the change in database
-        const fileChange: FileChange = {
-          id: changeId,
-          projectId: req.projectId,
-          operation: change.operation,
-          filePath: change.filePath,
-          content: change.content,
-          previousContent,
-          timestamp: new Date(),
-          applied: true,
-          source: req.source,
-          sessionId: req.sessionId
-        };
-
-        await db.exec`
-          INSERT INTO file_changes (
-            id, project_id, operation, file_path, content, previous_content, 
-            applied, source, session_id
-          ) VALUES (
-            ${changeId}, ${req.projectId}, ${change.operation}, ${change.filePath},
-            ${change.content}, ${previousContent}, true, ${req.source}, ${req.sessionId}
-          )
-        `;
-
-        // Update or create file record in database
-        if (change.operation === 'delete') {
-          await db.exec`
-            DELETE FROM files WHERE project_id = ${req.projectId} AND path = ${change.filePath}
-          `;
-        } else {
-          await db.exec`
-            INSERT INTO files (id, project_id, name, path, content, language)
-            VALUES (${generateId()}, ${req.projectId}, ${path.basename(change.filePath)}, ${change.filePath}, ${change.content || ''}, ${getLanguageFromPath(change.filePath)})
-            ON CONFLICT (project_id, path) 
-            DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
-          `;
-        }
-
-        appliedChanges.push(fileChange);
-      } catch (error) {
-        errors.push({
-          filePath: change.filePath,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    }
-
-    // Update project timestamp
-    await db.exec`
-      UPDATE projects SET updated_at = NOW() WHERE id = ${req.projectId}
-    `;
-
-    return { appliedChanges, errors };
+    return await applyFileChangesInternal(req);
   }
 );
 

@@ -2,8 +2,8 @@ import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import db from "../db";
 import { AIActionRequest, AIActionResult, WorkspaceStatus, BuildStatus, PreviewServer } from "./types";
-import { applyFileChanges } from "./filesystem";
-import { startBuild, startPreview } from "./build";
+import { applyFileChangesInternal } from "./filesystem";
+import { startBuildInternal, startPreviewInternal } from "./build";
 import { wsManager } from "../realtime/websocket";
 
 // Execute AI-generated actions (from chat or multi-agent)
@@ -40,7 +40,7 @@ export const executeAIAction = api<AIActionRequest, AIActionResult>(
               wsManager.broadcastFileUpdate(req.projectId, 'created', change.filePath, change.content);
             }
 
-            const fileResult = await applyFileChanges({
+            const fileResult = await applyFileChangesInternal({
               projectId: req.projectId,
               changes,
               source: req.source,
@@ -59,7 +59,7 @@ export const executeAIAction = api<AIActionRequest, AIActionResult>(
           // Broadcast build started
           wsManager.broadcastBuildUpdate(req.projectId, 'started', 'building', '');
           
-          const buildStatus = await startBuild({
+          const buildStatus = await startBuildInternal({
             projectId: req.projectId,
             command: req.payload.buildCommand,
             installDependencies: true
@@ -68,7 +68,7 @@ export const executeAIAction = api<AIActionRequest, AIActionResult>(
           break;
 
         case 'start_preview':
-          const previewServer = await startPreview({
+          const previewServer = await startPreviewInternal({
             projectId: req.projectId,
             framework: req.payload.framework as any
           });

@@ -63,6 +63,32 @@ export const startBuild = api<StartBuildRequest, BuildStatus>(
   }
 );
 
+// Internal function for starting builds (not an API endpoint)
+export async function startBuildInternal(req: StartBuildRequest): Promise<BuildStatus> {
+  const buildId = generateId();
+  const projectDir = getProjectDirectory(req.projectId);
+
+  // Initialize build status
+  const buildStatus: BuildStatus = {
+    id: buildId,
+    projectId: req.projectId,
+    status: 'running',
+    startedAt: new Date()
+  };
+
+  await db.exec`
+    INSERT INTO build_status (id, project_id, status, started_at)
+    VALUES (${buildId}, ${req.projectId}, 'running', NOW())
+  `;
+
+  // Start build process in background
+  executeBuild(buildId, projectDir, req.command, req.installDependencies).catch(err => {
+    console.error(`Build failed for project ${req.projectId}:`, err);
+  });
+
+  return buildStatus;
+}
+
 export interface GetBuildStatusRequest {
   projectId: string;
   buildId?: string;
@@ -178,6 +204,58 @@ export const startPreview = api<StartPreviewRequest, PreviewServer>(
     return previewServer;
   }
 );
+
+// Internal function for starting preview servers (not an API endpoint)
+export async function startPreviewInternal(req: StartPreviewRequest): Promise<PreviewServer> {
+  // Check if preview server already running
+  const existing = await db.queryRow`
+    SELECT id, port, status FROM preview_servers
+    WHERE project_id = ${req.projectId} AND status IN ('starting', 'running')
+  `;
+
+  if (existing) {
+    const previewServer = await db.queryRow<PreviewServer>`
+      SELECT id, project_id as "projectId", url, port, status,
+             started_at as "startedAt", last_accessed as "lastAccessed"
+      FROM preview_servers
+      WHERE id = ${existing.id}
+    `;
+    return previewServer!;
+  }
+
+  const previewId = generateId();
+  const port = req.port || await findAvailablePort();
+  
+  // Use production domain for preview URL
+  const isProduction = process.env.NODE_ENV === 'production';
+  const baseUrl = isProduction 
+    ? 'https://multi-agent-ai-development-platform-d3ac6ek82vji7q8c7gmg.lp.dev'
+    : `http://localhost:${port}`;
+  const url = isProduction ? `${baseUrl}/preview/${req.projectId}` : baseUrl;
+  
+  const projectDir = getProjectDirectory(req.projectId);
+
+  const previewServer: PreviewServer = {
+    id: previewId,
+    projectId: req.projectId,
+    url,
+    port,
+    status: 'starting',
+    startedAt: new Date()
+  };
+
+  await db.exec`
+    INSERT INTO preview_servers (id, project_id, url, port, status, started_at)
+    VALUES (${previewId}, ${req.projectId}, ${url}, ${port}, 'starting', NOW())
+  `;
+
+  // Start preview server in background
+  startPreviewServer(previewId, projectDir, port, req.framework).catch(err => {
+    console.error(`Preview server failed for project ${req.projectId}:`, err);
+  });
+
+  return previewServer;
+}
 
 export interface StopPreviewRequest {
   projectId: string;
