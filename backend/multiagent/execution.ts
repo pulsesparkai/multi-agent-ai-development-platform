@@ -475,7 +475,7 @@ async function updateSessionStatus(sessionId: string, status: string) {
 async function storeAgentMessage(sessionId: string, agentId: string, iteration: number, messageType: string, content: any, cost: number) {
   await db.exec`
     INSERT INTO agent_messages (id, session_id, agent_id, iteration, message_type, content, cost)
-    VALUES (${uuidv4()}, ${sessionId}, ${agentId}, ${iteration}, ${messageType}, ${JSON.stringify(content)}::jsonb, ${cost})
+    VALUES (${generateId()}, ${sessionId}, ${agentId}, ${iteration}, ${messageType}, ${JSON.stringify(content)}::jsonb, ${cost})
   `;
 }
 

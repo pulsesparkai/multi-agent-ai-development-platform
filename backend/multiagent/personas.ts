@@ -4,13 +4,17 @@ import db from "../db";
 // import { v4 as uuidv4 } from "uuid";
 import { CreatePersonaRequest, CustomPersona } from "./types";
 
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
+
 // Creates a new custom persona
 export const createPersona = api<CreatePersonaRequest, CustomPersona>(
   { auth: true, expose: true, method: "POST", path: "/multiagent/personas" },
   async (req) => {
     const auth = getAuthData()!;
 
-    const personaId = uuidv4();
+    const personaId = generateId();
 
     await db.exec`
       INSERT INTO custom_personas (id, user_id, name, description, system_prompt, suggested_role, tags, is_public)

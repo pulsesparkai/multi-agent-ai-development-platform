@@ -134,6 +134,7 @@ import {
     setKey as api_ai_keys_setKey,
     validateKey as api_ai_keys_validateKey
 } from "~backend/ai/keys";
+import { testChat as api_ai_test_testChat } from "~backend/ai/test";
 
 export namespace ai {
 
@@ -149,6 +150,7 @@ export namespace ai {
             this.getSession = this.getSession.bind(this)
             this.listKeys = this.listKeys.bind(this)
             this.setKey = this.setKey.bind(this)
+            this.testChat = this.testChat.bind(this)
             this.validateKey = this.validateKey.bind(this)
         }
 
@@ -210,6 +212,15 @@ export namespace ai {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/ai/keys`, {method: "POST", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ai_keys_setKey>
+        }
+
+        /**
+         * Simple test endpoint to debug the core AI calling
+         */
+        public async testChat(params: RequestType<typeof api_ai_test_testChat>): Promise<ResponseType<typeof api_ai_test_testChat>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/ai/test-chat`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ai_test_testChat>
         }
 
         public async validateKey(params: RequestType<typeof api_ai_keys_validateKey>): Promise<ResponseType<typeof api_ai_keys_validateKey>> {

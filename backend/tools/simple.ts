@@ -3,6 +3,10 @@ import { getAuthData } from "~encore/auth";
 import { getUserApiKey } from "../ai/keys";
 // import { v4 as uuidv4 } from "uuid";
 
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
+
 export interface SimpleCodeGenRequest {
   prompt: string;
   provider?: string;
@@ -23,7 +27,7 @@ export const generateWebsite = api<SimpleCodeGenRequest, SimpleCodeGenResponse>(
   { auth: true, expose: true, method: "POST", path: "/simple/generate" },
   async (req) => {
     const auth = getAuthData()!;
-    const sessionId = uuidv4();
+    const sessionId = generateId();
     
     // Start generation in background
     generateWebsiteWorkflow(sessionId, req.prompt, auth.userID, req.provider || 'openai', req.model || 'gpt-4').catch(err => {

@@ -12,6 +12,10 @@ import {
   Agent
 } from "./types";
 
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
+
 // Analyzes project requirements and assigns optimal roles to agents
 export const assignRoles = api<RoleAssignmentRequest & { teamId: string }, { assignments: { agentId: string; newRole: AgentRole; reason: string }[] }>(
   { auth: true, expose: true, method: "POST", path: "/multiagent/teams/:teamId/assign-roles" },
@@ -86,7 +90,7 @@ export const createRoleRule = api<CreateRoleRuleRequest, RoleAssignmentRule>(
       throw APIError.notFound("team not found");
     }
 
-    const ruleId = uuidv4();
+    const ruleId = generateId();
 
     await db.exec`
       INSERT INTO role_assignment_rules (id, team_id, project_type, trigger, from_role, to_role, condition, priority)

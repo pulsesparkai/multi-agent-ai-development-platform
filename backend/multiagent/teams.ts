@@ -4,6 +4,10 @@ import db from "../db";
 // import { v4 as uuidv4 } from "uuid";
 import { CreateTeamRequest, AgentTeam, Agent } from "./types";
 
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
+
 // Creates a new agent team
 export const createTeam = api<CreateTeamRequest, AgentTeam>(
   { auth: true, expose: true, method: "POST", path: "/multiagent/teams" },
@@ -21,7 +25,7 @@ export const createTeam = api<CreateTeamRequest, AgentTeam>(
       }
     }
 
-    const teamId = uuidv4();
+    const teamId = generateId();
     
     await db.exec`
       INSERT INTO agent_teams (id, user_id, project_id, name, description, budget_limit)
@@ -216,7 +220,7 @@ async function createDefaultAgents(teamId: string) {
   for (const agent of defaultAgents) {
     await db.exec`
       INSERT INTO agents (id, team_id, name, role, provider, model, system_prompt, execution_order, can_adapt_role, available_roles, current_role)
-      VALUES (${uuidv4()}, ${teamId}, ${agent.name}, ${agent.role}, ${agent.provider}, ${agent.model}, ${agent.systemPrompt}, ${agent.executionOrder}, 
+      VALUES (${generateId()}, ${teamId}, ${agent.name}, ${agent.role}, ${agent.provider}, ${agent.model}, ${agent.systemPrompt}, ${agent.executionOrder}, 
               ${agent.canAdaptRole}, ${agent.availableRoles}, ${agent.role})
     `;
   }
