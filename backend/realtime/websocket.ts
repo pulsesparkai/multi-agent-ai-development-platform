@@ -1,201 +1,134 @@
-import { WebSocketServer } from 'ws';
-import { IncomingMessage } from 'http';
+import { api, StreamInOut } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
-import db from "../db";
+import log from "encore.dev/log";
 
 interface WebSocketMessage {
-  type: 'file_created' | 'file_updated' | 'file_deleted' | 'build_started' | 'build_completed' | 'build_failed' | 'preview_ready' | 'agent_reasoning' | 'session_update' | 'pong';
-  projectId: string;
+  type: 'file_created' | 'file_updated' | 'file_deleted' | 'build_started' | 'build_completed' | 'build_failed' | 'preview_ready' | 'agent_reasoning' | 'session_update' | 'pong' | 'ping' | 'subscribe_project' | 'subscribe_session';
+  projectId?: string;
   sessionId?: string;
-  data: any;
-  timestamp: Date;
+  data?: any;
+  timestamp?: string;
+}
+
+interface WSHandshake {
+  projectId?: string;
+  sessionId?: string;
 }
 
 interface ConnectedClient {
-  ws: any;
+  stream: StreamInOut<WebSocketMessage, WebSocketMessage>;
   userId: string;
   projectId?: string;
   sessionId?: string;
 }
 
 class WebSocketManager {
-  private wss: WebSocketServer | null = null;
   private clients: Map<string, ConnectedClient> = new Map();
 
-  initialize(server: any) {
-    this.wss = new WebSocketServer({ server });
-    
-    this.wss.on('connection', (ws, request: IncomingMessage) => {
-      this.handleConnection(ws, request);
-    });
+  addClient(clientId: string, client: ConnectedClient) {
+    this.clients.set(clientId, client);
+    log.info(`WebSocket client connected: ${clientId}, user: ${client.userId}`);
   }
 
-  private async handleConnection(ws: any, request: IncomingMessage) {
-    try {
-      // Extract auth from query parameters or headers
-      const url = new URL(request.url!, `http://${request.headers.host}`);
-      const token = url.searchParams.get('token') || request.headers.authorization?.replace('Bearer ', '');
-      
-      if (!token) {
-        ws.close(1008, 'Authentication required');
-        return;
-      }
+  removeClient(clientId: string) {
+    this.clients.delete(clientId);
+    log.info(`WebSocket client disconnected: ${clientId}`);
+  }
 
-      // Validate token and get user info
-      // Note: This is a simplified version - in production, properly validate the JWT
-      const userId = await this.validateToken(token);
-      if (!userId) {
-        ws.close(1008, 'Invalid token');
-        return;
-      }
-
-      const clientId = this.generateClientId();
-      const client: ConnectedClient = {
-        ws,
-        userId,
-        projectId: url.searchParams.get('projectId') || undefined,
-        sessionId: url.searchParams.get('sessionId') || undefined
-      };
-
-      this.clients.set(clientId, client);
-      
-      console.log(`WebSocket client connected: ${clientId}, user: ${userId}`);
-
-      // Send welcome message
-      this.sendToClient(clientId, {
-        type: 'session_update',
-        projectId: client.projectId || '',
-        data: { status: 'connected', clientId },
-        timestamp: new Date()
-      });
-
-      ws.on('message', (data: string) => {
-        this.handleMessage(clientId, data);
-      });
-
-      ws.on('close', () => {
-        this.clients.delete(clientId);
-        console.log(`WebSocket client disconnected: ${clientId}`);
-      });
-
-      ws.on('error', (error: Error) => {
-        console.error(`WebSocket error for client ${clientId}:`, error);
-        this.clients.delete(clientId);
-      });
-
-    } catch (error) {
-      console.error('WebSocket connection error:', error);
-      ws.close(1011, 'Internal server error');
+  updateClientProject(clientId: string, projectId: string) {
+    const client = this.clients.get(clientId);
+    if (client) {
+      client.projectId = projectId;
     }
   }
 
-  private async validateToken(token: string): Promise<string | null> {
-    try {
-      // Simple token validation - in production, use proper JWT validation
-      // For now, we'll just check if it's a valid user ID format
-      if (token.startsWith('user_')) {
-        return token;
-      }
-      return null;
-    } catch (error) {
-      return null;
+  updateClientSession(clientId: string, sessionId: string) {
+    const client = this.clients.get(clientId);
+    if (client) {
+      client.sessionId = sessionId;
     }
   }
 
-  private generateClientId(): string {
+  private async sendToClient(clientId: string, message: WebSocketMessage) {
+    const client = this.clients.get(clientId);
+    if (client) {
+      try {
+        await client.stream.send(message);
+      } catch (error) {
+        log.error(`Failed to send message to client ${clientId}:`, error);
+        this.clients.delete(clientId);
+      }
+    }
+  }
+
+  generateClientId(): string {
     return `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  private handleMessage(clientId: string, data: string) {
-    try {
-      const message = JSON.parse(data);
-      const client = this.clients.get(clientId);
-      
-      if (!client) return;
-
-      switch (message.type) {
-        case 'subscribe_project':
-          client.projectId = message.projectId;
-          break;
-        case 'subscribe_session':
-          client.sessionId = message.sessionId;
-          break;
-        case 'ping':
-          this.sendToClient(clientId, { type: 'pong', projectId: '', data: {}, timestamp: new Date() });
-          break;
-      }
-    } catch (error) {
-      console.error('Error handling WebSocket message:', error);
-    }
-  }
-
-  private sendToClient(clientId: string, message: WebSocketMessage) {
-    const client = this.clients.get(clientId);
-    if (client && client.ws.readyState === 1) { // WebSocket.OPEN
-      client.ws.send(JSON.stringify(message));
-    }
-  }
-
   // Public methods for broadcasting updates
-  broadcastFileUpdate(projectId: string, operation: 'created' | 'updated' | 'deleted', filePath: string, content?: string) {
+  async broadcastFileUpdate(projectId: string, operation: 'created' | 'updated' | 'deleted', filePath: string, content?: string) {
     const message: WebSocketMessage = {
       type: `file_${operation}` as any,
       projectId,
       data: { filePath, content, operation },
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     };
 
-    this.broadcastToProject(projectId, message);
+    await this.broadcastToProject(projectId, message);
   }
 
-  broadcastBuildUpdate(projectId: string, status: 'started' | 'completed' | 'failed', buildId: string, output?: string, error?: string) {
+  async broadcastBuildUpdate(projectId: string, status: 'started' | 'completed' | 'failed', buildId: string, output?: string, error?: string) {
     const message: WebSocketMessage = {
       type: `build_${status}` as any,
       projectId,
       data: { buildId, output, error, status },
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     };
 
-    this.broadcastToProject(projectId, message);
+    await this.broadcastToProject(projectId, message);
   }
 
-  broadcastPreviewReady(projectId: string, url: string) {
+  async broadcastPreviewReady(projectId: string, url: string) {
     const message: WebSocketMessage = {
       type: 'preview_ready',
       projectId,
       data: { url },
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     };
 
-    this.broadcastToProject(projectId, message);
+    await this.broadcastToProject(projectId, message);
   }
 
-  broadcastAgentReasoning(projectId: string, sessionId: string, agentName: string, reasoning: string, action: string) {
+  async broadcastAgentReasoning(projectId: string, sessionId: string, agentName: string, reasoning: string, action: string) {
     const message: WebSocketMessage = {
       type: 'agent_reasoning',
       projectId,
       sessionId,
       data: { agentName, reasoning, action },
-      timestamp: new Date()
+      timestamp: new Date().toISOString()
     };
 
-    this.broadcastToSession(sessionId, message);
+    await this.broadcastToSession(sessionId, message);
   }
 
-  private broadcastToProject(projectId: string, message: WebSocketMessage) {
+  private async broadcastToProject(projectId: string, message: WebSocketMessage) {
+    const promises = [];
     for (const [clientId, client] of this.clients) {
       if (client.projectId === projectId) {
-        this.sendToClient(clientId, message);
+        promises.push(this.sendToClient(clientId, message));
       }
     }
+    await Promise.allSettled(promises);
   }
 
-  private broadcastToSession(sessionId: string, message: WebSocketMessage) {
+  private async broadcastToSession(sessionId: string, message: WebSocketMessage) {
+    const promises = [];
     for (const [clientId, client] of this.clients) {
       if (client.sessionId === sessionId) {
-        this.sendToClient(clientId, message);
+        promises.push(this.sendToClient(clientId, message));
       }
     }
+    await Promise.allSettled(promises);
   }
 
   getConnectedClients(): number {
@@ -203,5 +136,68 @@ class WebSocketManager {
   }
 }
 
+// WebSocket streaming endpoint using Encore.ts
+export const ws = api.streamInOut<WSHandshake, WebSocketMessage, WebSocketMessage>(
+  { expose: true, path: "/ws", auth: false },
+  async (handshake, stream) => {
+    const clientId = wsManager.generateClientId();
+    
+    // Get user from auth context if available
+    let userId = 'anonymous';
+    try {
+      const auth = getAuthData();
+      if (auth && auth.userID) {
+        userId = auth.userID;
+      }
+    } catch (error) {
+      // Auth not available, continue as anonymous
+    }
+    
+    const client: ConnectedClient = {
+      stream,
+      userId,
+      projectId: handshake?.projectId,
+      sessionId: handshake?.sessionId
+    };
+    
+    wsManager.addClient(clientId, client);
+    
+    // Send welcome message
+    await stream.send({
+      type: 'session_update',
+      projectId: client.projectId,
+      data: { status: 'connected', clientId },
+      timestamp: new Date().toISOString()
+    });
+    
+    try {
+      for await (const message of stream) {
+        switch (message.type) {
+          case 'subscribe_project':
+            if (message.projectId) {
+              wsManager.updateClientProject(clientId, message.projectId);
+            }
+            break;
+          case 'subscribe_session':
+            if (message.sessionId) {
+              wsManager.updateClientSession(clientId, message.sessionId);
+            }
+            break;
+          case 'ping':
+            await stream.send({ 
+              type: 'pong', 
+              timestamp: new Date().toISOString() 
+            });
+            break;
+        }
+      }
+    } catch (error) {
+      log.error(`WebSocket stream error for client ${clientId}:`, error);
+    } finally {
+      wsManager.removeClient(clientId);
+    }
+  }
+);
+
 export const wsManager = new WebSocketManager();
-export type { WebSocketMessage, ConnectedClient };
+export type { WebSocketMessage, ConnectedClient, WSHandshake };

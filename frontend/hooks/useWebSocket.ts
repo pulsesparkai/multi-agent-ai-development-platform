@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
+import backend from '~backend/client';
 
 interface WebSocketMessage {
-  type: 'file_created' | 'file_updated' | 'file_deleted' | 'build_started' | 'build_completed' | 'build_failed' | 'preview_ready' | 'agent_reasoning' | 'session_update';
-  projectId: string;
+  type: 'file_created' | 'file_updated' | 'file_deleted' | 'build_started' | 'build_completed' | 'build_failed' | 'preview_ready' | 'agent_reasoning' | 'session_update' | 'pong' | 'ping' | 'subscribe_project' | 'subscribe_session';
+  projectId?: string;
   sessionId?: string;
-  data: any;
-  timestamp: string;
+  data?: any;
+  timestamp?: string;
 }
 
 interface UseWebSocketOptions {
@@ -20,70 +21,68 @@ interface UseWebSocketOptions {
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  const { getToken } = useAuth();
+  const { isSignedIn } = useAuth();
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const streamRef = useRef<any>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
-  const maxReconnectAttempts = 5;
+  const maxReconnectAttempts = 10;
+  const shouldReconnectRef = useRef(true);
 
   const connect = async () => {
     try {
-      const token = await getToken();
-      if (!token) {
-        setError('No authentication token available');
+      if (!isSignedIn) {
+        setError('Not signed in');
         return;
       }
 
       // Close existing connection
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-
-      // Build WebSocket URL
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      const params = new URLSearchParams({ token });
-      
-      if (options.projectId) {
-        params.set('projectId', options.projectId);
-      }
-      if (options.sessionId) {
-        params.set('sessionId', options.sessionId);
-      }
-
-      const wsUrl = `${protocol}//${host}/ws?${params}`;
-      
-      console.log('Connecting to WebSocket:', wsUrl);
-      const ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-        setConnected(true);
-        setError(null);
-        setReconnectAttempts(0);
-        
-        // Subscribe to project updates if projectId is provided
-        if (options.projectId) {
-          ws.send(JSON.stringify({
-            type: 'subscribe_project',
-            projectId: options.projectId
-          }));
-        }
-        
-        // Subscribe to session updates if sessionId is provided
-        if (options.sessionId) {
-          ws.send(JSON.stringify({
-            type: 'subscribe_session',
-            sessionId: options.sessionId
-          }));
-        }
-      };
-
-      ws.onmessage = (event) => {
+      if (streamRef.current) {
+        shouldReconnectRef.current = false;
         try {
-          const message: WebSocketMessage = JSON.parse(event.data);
+          await streamRef.current.close();
+        } catch (e) {
+          // Ignore close errors
+        }
+        streamRef.current = null;
+      }
+
+      shouldReconnectRef.current = true;
+      console.log('Connecting to WebSocket stream...');
+      
+      // Connect to the streaming endpoint
+      const stream = await backend.realtime.ws({
+        projectId: options.projectId,
+        sessionId: options.sessionId
+      });
+
+      streamRef.current = stream;
+      setConnected(true);
+      setError(null);
+      setReconnectAttempts(0);
+
+      console.log('WebSocket stream connected');
+
+      // Subscribe to project updates if projectId is provided
+      if (options.projectId) {
+        await stream.send({
+          type: 'subscribe_project',
+          projectId: options.projectId
+        });
+      }
+      
+      // Subscribe to session updates if sessionId is provided
+      if (options.sessionId) {
+        await stream.send({
+          type: 'subscribe_session',
+          sessionId: options.sessionId
+        });
+      }
+
+      // Listen for messages
+      try {
+        for await (const message of stream) {
           console.log('WebSocket message received:', message);
           
           // Call the general message handler
@@ -95,9 +94,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             case 'file_updated':
             case 'file_deleted':
               options.onFileUpdate?.(
-                message.data.filePath,
-                message.data.operation,
-                message.data.content
+                message.data?.filePath,
+                message.data?.operation,
+                message.data?.content
               );
               break;
               
@@ -105,91 +104,115 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             case 'build_completed':
             case 'build_failed':
               options.onBuildUpdate?.(
-                message.data.status,
-                message.data.buildId,
-                message.data.output,
-                message.data.error
+                message.data?.status,
+                message.data?.buildId,
+                message.data?.output,
+                message.data?.error
               );
               break;
               
             case 'preview_ready':
-              options.onPreviewReady?.(message.data.url);
+              options.onPreviewReady?.(message.data?.url);
               break;
               
             case 'agent_reasoning':
               options.onAgentReasoning?.(
-                message.data.agentName,
-                message.data.reasoning,
-                message.data.action
+                message.data?.agentName,
+                message.data?.reasoning,
+                message.data?.action
               );
               break;
           }
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
         }
-      };
-
-      ws.onclose = (event) => {
-        console.log('WebSocket disconnected:', event.code, event.reason);
-        setConnected(false);
-        wsRef.current = null;
-        
-        // Auto-reconnect logic
-        if (!event.wasClean && reconnectAttempts < maxReconnectAttempts) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-          console.log(`Reconnecting in ${delay}ms... (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+      } catch (streamError) {
+        console.log('WebSocket stream ended:', streamError);
+        if (shouldReconnectRef.current && reconnectAttempts < maxReconnectAttempts && isSignedIn) {
+          const baseDelay = 1000;
+          const maxDelay = 30000;
+          const jitter = Math.random() * 1000;
+          const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempts) + jitter, maxDelay);
+          
+          console.log(`Reconnecting in ${Math.round(delay)}ms... (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
           
           reconnectTimeoutRef.current = setTimeout(() => {
             setReconnectAttempts(prev => prev + 1);
             connect();
           }, delay);
+        } else {
+          setError('Connection lost');
         }
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setError('WebSocket connection error');
-      };
-
-      wsRef.current = ws;
+      } finally {
+        setConnected(false);
+        streamRef.current = null;
+      }
 
     } catch (error) {
-      console.error('Failed to connect WebSocket:', error);
+      console.error('Failed to connect WebSocket stream:', error);
       setError('Failed to connect to real-time updates');
+      setConnected(false);
+      
+      // Auto-reconnect on connection failure
+      if (shouldReconnectRef.current && reconnectAttempts < maxReconnectAttempts && isSignedIn) {
+        const baseDelay = 2000;
+        const maxDelay = 30000;
+        const jitter = Math.random() * 1000;
+        const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempts) + jitter, maxDelay);
+        
+        console.log(`Reconnecting after error in ${Math.round(delay)}ms... (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+        
+        reconnectTimeoutRef.current = setTimeout(() => {
+          setReconnectAttempts(prev => prev + 1);
+          connect();
+        }, delay);
+      }
     }
   };
 
-  const disconnect = () => {
+  const disconnect = async () => {
+    shouldReconnectRef.current = false;
+    
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
     
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    if (streamRef.current) {
+      try {
+        await streamRef.current.close();
+      } catch (e) {
+        // Ignore close errors
+      }
+      streamRef.current = null;
     }
     
     setConnected(false);
     setReconnectAttempts(0);
   };
 
-  const sendMessage = (message: any) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message));
+  const sendMessage = async (message: WebSocketMessage) => {
+    if (streamRef.current && connected) {
+      try {
+        await streamRef.current.send(message);
+      } catch (error) {
+        console.warn('Failed to send WebSocket message:', error);
+      }
     } else {
       console.warn('WebSocket not connected, cannot send message:', message);
     }
   };
 
-  // Connect when options change
+  // Connect when options change or when signed in
   useEffect(() => {
-    connect();
+    if (isSignedIn) {
+      connect();
+    } else {
+      disconnect();
+    }
     
     return () => {
       disconnect();
     };
-  }, [options.projectId, options.sessionId]);
+  }, [options.projectId, options.sessionId, isSignedIn]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -203,6 +226,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     error,
     connect,
     disconnect,
-    sendMessage
+    sendMessage,
+    reconnectAttempts
   };
 }

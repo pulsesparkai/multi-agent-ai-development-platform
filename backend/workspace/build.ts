@@ -143,7 +143,14 @@ export const startPreview = api<StartPreviewRequest, PreviewServer>(
 
     const previewId = uuidv4();
     const port = req.port || await findAvailablePort();
-    const url = `http://localhost:${port}`;
+    
+    // Use production domain for preview URL
+    const isProduction = process.env.NODE_ENV === 'production';
+    const baseUrl = isProduction 
+      ? 'https://multi-agent-ai-development-platform-d3ac6ek82vji7q8c7gmg.lp.dev'
+      : `http://localhost:${port}`;
+    const url = isProduction ? `${baseUrl}/preview/${req.projectId}` : baseUrl;
+    
     const projectDir = getProjectDirectory(req.projectId);
 
     const previewServer: PreviewServer = {
@@ -239,6 +246,58 @@ export const getPreviewUrl = api<GetPreviewUrlRequest, GetPreviewUrlResponse>(
       url: preview?.url || null,
       status: preview?.status || 'stopped'
     };
+  }
+);
+
+// Serve preview files
+export const servePreview = api<{ projectId: string; filePath?: string }, { content: string; contentType: string }>(
+  { expose: true, method: "GET", path: "/preview/:projectId/*filePath" },
+  async ({ projectId, filePath = "index.html" }) => {
+    const projectDir = getProjectDirectory(projectId);
+    const distDir = path.join(projectDir, "dist");
+    
+    // Default to index.html for directory requests
+    const targetFile = filePath.endsWith('/') || !filePath ? 'index.html' : filePath;
+    const fullPath = path.join(distDir, targetFile);
+    
+    // Security check - ensure we're serving from the dist directory
+    if (!fullPath.startsWith(distDir)) {
+      throw APIError.notFound("File not found");
+    }
+    
+    try {
+      const content = await fs.readFile(fullPath, 'utf-8');
+      const ext = path.extname(fullPath);
+      
+      const contentTypes: Record<string, string> = {
+        '.html': 'text/html',
+        '.css': 'text/css',
+        '.js': 'application/javascript',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon'
+      };
+      
+      const contentType = contentTypes[ext] || 'text/plain';
+      
+      return { content, contentType };
+    } catch (error) {
+      // If file not found and it's not index.html, try serving index.html (SPA routing)
+      if (targetFile !== 'index.html') {
+        try {
+          const indexPath = path.join(distDir, 'index.html');
+          const content = await fs.readFile(indexPath, 'utf-8');
+          return { content, contentType: 'text/html' };
+        } catch (indexError) {
+          throw APIError.notFound("File not found");
+        }
+      }
+      throw APIError.notFound("File not found");
+    }
   }
 );
 

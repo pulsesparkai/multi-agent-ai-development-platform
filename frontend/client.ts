@@ -42,6 +42,7 @@ export class Client {
     public readonly localstorage: localstorage.ServiceClient
     public readonly multiagent: multiagent.ServiceClient
     public readonly projects: projects.ServiceClient
+    public readonly realtime: realtime.ServiceClient
     public readonly security: security.ServiceClient
     public readonly templates: templates.ServiceClient
     public readonly tools: tools.ServiceClient
@@ -71,6 +72,7 @@ export class Client {
         this.localstorage = new localstorage.ServiceClient(base)
         this.multiagent = new multiagent.ServiceClient(base)
         this.projects = new projects.ServiceClient(base)
+        this.realtime = new realtime.ServiceClient(base)
         this.security = new security.ServiceClient(base)
         this.templates = new templates.ServiceClient(base)
         this.tools = new tools.ServiceClient(base)
@@ -1076,6 +1078,36 @@ export namespace projects {
 /**
  * Import the endpoint handlers to derive the types for the client.
  */
+import { ws as api_realtime_websocket_ws } from "~backend/realtime/websocket";
+
+export namespace realtime {
+
+    export class ServiceClient {
+        private baseClient: BaseClient
+
+        constructor(baseClient: BaseClient) {
+            this.baseClient = baseClient
+            this.ws = this.ws.bind(this)
+        }
+
+        /**
+         * WebSocket streaming endpoint using Encore.ts
+         */
+        public async ws(params: RequestType<typeof api_realtime_websocket_ws>): Promise<StreamInOut<StreamRequest<typeof api_realtime_websocket_ws>, StreamResponse<typeof api_realtime_websocket_ws>>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                projectId: params.projectId,
+                sessionId: params.sessionId,
+            })
+
+            return await this.baseClient.createStreamInOut(`/ws`, {query})
+        }
+    }
+}
+
+/**
+ * Import the endpoint handlers to derive the types for the client.
+ */
 import {
     deleteSecureData as api_security_encryption_deleteSecureData,
     retrieveSecureData as api_security_encryption_retrieveSecureData,
@@ -1320,6 +1352,7 @@ export namespace versioncontrol {
 import {
     getBuildStatus as api_workspace_build_getBuildStatus,
     getPreviewUrl as api_workspace_build_getPreviewUrl,
+    servePreview as api_workspace_build_servePreview,
     startBuild as api_workspace_build_startBuild,
     startPreview as api_workspace_build_startPreview,
     stopPreview as api_workspace_build_stopPreview
@@ -1348,6 +1381,7 @@ export namespace workspace {
             this.getPreviewUrl = this.getPreviewUrl.bind(this)
             this.getWorkspaceStatus = this.getWorkspaceStatus.bind(this)
             this.revertChanges = this.revertChanges.bind(this)
+            this.servePreview = this.servePreview.bind(this)
             this.startBuild = this.startBuild.bind(this)
             this.startPreview = this.startPreview.bind(this)
             this.stopPreview = this.stopPreview.bind(this)
@@ -1445,6 +1479,15 @@ export namespace workspace {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/revert`, {method: "POST", body: JSON.stringify(body)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_filesystem_revertChanges>
+        }
+
+        /**
+         * Serve preview files
+         */
+        public async servePreview(params: { projectId: string, filePath: string[] }): Promise<ResponseType<typeof api_workspace_build_servePreview>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/preview/${encodeURIComponent(params.projectId)}/${params.filePath.map(encodeURIComponent).join("/")}`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_build_servePreview>
         }
 
         /**
