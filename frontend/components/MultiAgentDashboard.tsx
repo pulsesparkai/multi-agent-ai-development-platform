@@ -13,7 +13,9 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  Plus
+  Plus,
+  User,
+  Shuffle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,6 +29,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/components/ui/use-toast';
 import { useBackend } from '../hooks/useBackend';
+import PersonaManager from './PersonaManager';
+import RoleManagement from './RoleManagement';
 
 interface MultiAgentDashboardProps {
   projectId: string;
@@ -206,10 +210,12 @@ export default function MultiAgentDashboard({ projectId, onClose }: MultiAgentDa
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="dashboard" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-3 mx-4 mt-4">
+          <TabsList className="grid w-full grid-cols-5 mx-4 mt-4">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="sessions">Sessions</TabsTrigger>
             <TabsTrigger value="teams">Teams</TabsTrigger>
+            <TabsTrigger value="roles">Roles</TabsTrigger>
+            <TabsTrigger value="personas">Personas</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="flex-1 overflow-hidden px-4 pb-4">
@@ -395,6 +401,21 @@ export default function MultiAgentDashboard({ projectId, onClose }: MultiAgentDa
             </div>
           </TabsContent>
 
+          <TabsContent value="roles" className="flex-1 overflow-hidden px-4 pb-4">
+            {selectedTeam ? (
+              <RoleManagement teamId={selectedTeam} projectId={projectId} />
+            ) : (
+              <div className="text-center text-muted-foreground py-8">
+                <Shuffle className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>Select a team to manage roles</p>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="personas" className="flex-1 overflow-hidden px-4 pb-4">
+            <PersonaManager />
+          </TabsContent>
+
           <TabsContent value="teams" className="flex-1 overflow-hidden px-4 pb-4">
             <div className="space-y-4 h-full">
               <div className="flex items-center justify-between">
@@ -447,6 +468,7 @@ export default function MultiAgentDashboard({ projectId, onClose }: MultiAgentDa
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>${team.budgetUsed.toFixed(2)} / ${team.budgetLimit.toFixed(2)}</span>
                           <span>{team.agents?.length || 0} agents</span>
+                          <span>{team.agents?.filter(a => a.canAdaptRole).length || 0} adaptive</span>
                         </div>
                       </CardContent>
                     </Card>

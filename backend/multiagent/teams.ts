@@ -110,6 +110,8 @@ export const getTeam = api<{ teamId: string }, AgentTeam>(
     const agents = await db.queryAll<Agent>`
       SELECT id, team_id as "teamId", name, role, provider, model, system_prompt as "systemPrompt",
              execution_order as "executionOrder", is_enabled as "isEnabled",
+             can_adapt_role as "canAdaptRole", available_roles as "availableRoles",
+             current_role as "currentRole", persona_id as "personaId",
              created_at as "createdAt", updated_at as "updatedAt"
       FROM agents
       WHERE team_id = ${teamId}
@@ -165,7 +167,9 @@ async function createDefaultAgents(teamId: string) {
       provider: "google" as const,
       model: "gemini-pro",
       systemPrompt: "You are a strategic planner agent responsible for breaking down user requests into actionable tasks. Analyze the requirements, identify dependencies, and create a structured plan with clear steps. Focus on understanding the big picture and creating comprehensive project roadmaps.",
-      executionOrder: 1
+      executionOrder: 1,
+      canAdaptRole: true,
+      availableRoles: ["planner", "coordinator"]
     },
     {
       name: "Code Generator",
@@ -173,7 +177,9 @@ async function createDefaultAgents(teamId: string) {
       provider: "anthropic" as const,
       model: "claude-3-sonnet-20240229",
       systemPrompt: "You are a code generation agent specialized in writing clean, efficient, and well-documented code. Follow best practices, implement proper error handling, and ensure code quality. Generate complete, functional implementations based on the provided specifications.",
-      executionOrder: 2
+      executionOrder: 2,
+      canAdaptRole: true,
+      availableRoles: ["coder", "reviewer", "tester"]
     },
     {
       name: "Quality Tester",
@@ -181,7 +187,9 @@ async function createDefaultAgents(teamId: string) {
       provider: "openai" as const,
       model: "gpt-4",
       systemPrompt: "You are a testing and debugging agent responsible for identifying issues, writing tests, and ensuring code quality. Review code for bugs, security vulnerabilities, and performance issues. Provide detailed feedback and suggest improvements.",
-      executionOrder: 3
+      executionOrder: 3,
+      canAdaptRole: true,
+      availableRoles: ["tester", "reviewer", "coder"]
     },
     {
       name: "Code Reviewer",
@@ -189,7 +197,9 @@ async function createDefaultAgents(teamId: string) {
       provider: "openai" as const,
       model: "gpt-4",
       systemPrompt: "You are a code review agent focused on ensuring code quality, maintainability, and adherence to best practices. Review implementations for design patterns, readability, and optimization opportunities. Provide constructive feedback and approve final implementations.",
-      executionOrder: 4
+      executionOrder: 4,
+      canAdaptRole: true,
+      availableRoles: ["reviewer", "coordinator", "tester"]
     },
     {
       name: "Team Coordinator",
@@ -197,14 +207,17 @@ async function createDefaultAgents(teamId: string) {
       provider: "xai" as const,
       model: "grok-beta",
       systemPrompt: "You are a coordination agent responsible for managing the workflow between other agents. Make decisions about iteration continuation, handle conflicts between agents, and ensure the team stays focused on the original goals. Synthesize outputs and make final decisions.",
-      executionOrder: 5
+      executionOrder: 5,
+      canAdaptRole: true,
+      availableRoles: ["coordinator", "planner", "reviewer"]
     }
   ];
 
   for (const agent of defaultAgents) {
     await db.exec`
-      INSERT INTO agents (id, team_id, name, role, provider, model, system_prompt, execution_order)
-      VALUES (${uuidv4()}, ${teamId}, ${agent.name}, ${agent.role}, ${agent.provider}, ${agent.model}, ${agent.systemPrompt}, ${agent.executionOrder})
+      INSERT INTO agents (id, team_id, name, role, provider, model, system_prompt, execution_order, can_adapt_role, available_roles, current_role)
+      VALUES (${uuidv4()}, ${teamId}, ${agent.name}, ${agent.role}, ${agent.provider}, ${agent.model}, ${agent.systemPrompt}, ${agent.executionOrder}, 
+              ${agent.canAdaptRole}, ${agent.availableRoles}, ${agent.role})
     `;
   }
 }
