@@ -21,7 +21,7 @@ interface UseWebSocketOptions {
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const streamRef = useRef<any>(null);
@@ -50,6 +50,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
       shouldReconnectRef.current = true;
       console.log('Connecting to WebSocket stream...');
+      
+      // Get authentication token
+      const token = await getToken();
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
       
       // Connect to the streaming endpoint
       const stream = await backend.realtime.ws({

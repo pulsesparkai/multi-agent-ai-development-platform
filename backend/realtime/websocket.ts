@@ -138,20 +138,13 @@ class WebSocketManager {
 
 // WebSocket streaming endpoint using Encore.ts
 export const ws = api.streamInOut<WSHandshake, WebSocketMessage, WebSocketMessage>(
-  { expose: true, path: "/ws", auth: false },
+  { expose: true, path: "/ws", auth: true },
   async (handshake, stream) => {
     const clientId = wsManager.generateClientId();
     
-    // Get user from auth context if available
-    let userId = 'anonymous';
-    try {
-      const auth = getAuthData();
-      if (auth && auth.userID) {
-        userId = auth.userID;
-      }
-    } catch (error) {
-      // Auth not available, continue as anonymous
-    }
+    // Get user from auth context
+    const auth = getAuthData();
+    const userId = auth?.userID || 'anonymous';
     
     const client: ConnectedClient = {
       stream,

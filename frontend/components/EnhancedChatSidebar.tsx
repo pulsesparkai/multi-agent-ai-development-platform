@@ -24,6 +24,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { useBackend } from '../hooks/useBackend';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { config } from '../config';
 
 interface EnhancedChatSidebarProps {
   projectId: string;
@@ -50,9 +51,9 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
   const [message, setMessage] = useState('');
   const [provider, setProvider] = useState<'openai' | 'anthropic' | 'google' | 'xai'>('anthropic');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [autoApply, setAutoApply] = useState(true);
-  const [autoBuild, setAutoBuild] = useState(true);
-  const [autoPreview, setAutoPreview] = useState(true);
+  const [autoApply, setAutoApply] = useState(config.defaultAutoApply);
+  const [autoBuild, setAutoBuild] = useState(config.defaultAutoBuild);
+  const [autoPreview, setAutoPreview] = useState(config.defaultAutoPreview);
   const [sessionId, setSessionId] = useState<string>('');
   const [lastResponse, setLastResponse] = useState<EnhancedChatResponse | null>(null);
   const [reasoning, setReasoning] = useState<Array<{
@@ -74,10 +75,10 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // WebSocket for real-time updates
+  // WebSocket for real-time updates (disabled in offline mode)
   const { connected: wsConnected, error: wsError } = useWebSocket({
-    projectId,
-    sessionId: sessionId || undefined,
+    projectId: config.offlineMode ? undefined : projectId,
+    sessionId: config.offlineMode ? undefined : (sessionId || undefined),
     onAgentReasoning: (agentName, reasoningText, action) => {
       setReasoning(prev => [...prev, {
         agentName,
@@ -353,7 +354,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
           <div className="flex items-center gap-2 text-xs">
             <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
             <span className="text-muted-foreground">
-              {wsConnected ? 'Real-time updates active' : 'Offline mode'}
+              {config.offlineMode ? 'Offline mode' : (wsConnected ? 'Real-time updates active' : 'Connecting...')}
             </span>
           </div>
 
