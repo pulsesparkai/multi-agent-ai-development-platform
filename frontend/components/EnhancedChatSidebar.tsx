@@ -26,6 +26,9 @@ import { useBackend } from '../hooks/useBackend';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { config } from '../config';
 import APIKeySettings from './APIKeySettings';
+import LeapStyleTodo from './LeapStyleTodo';
+import { LeapStyleExecutor, TodoItem, ExecutionStep } from '../lib/LeapStyleExecutor';
+import { RealAIExecutor } from '../lib/RealAIExecutor';
 
 interface EnhancedChatSidebarProps {
   projectId: string;
@@ -71,6 +74,9 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
   const [buildStatus, setBuildStatus] = useState<string>('');
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [showAPIKeySettings, setShowAPIKeySettings] = useState(false);
+  const [executionTodos, setExecutionTodos] = useState<TodoItem[]>([]);
+  const [executor, setExecutor] = useState<RealAIExecutor | null>(null);
+  const [isExecutingSteps, setIsExecutingSteps] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const backend = useBackend();
@@ -232,21 +238,97 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || enhancedChatMutation.isPending) return;
+    if (!message.trim() || isExecutingSteps) return;
 
-    // Clear previous reasoning and updates when starting new request
+    // Clear previous state
     setReasoning([]);
     setFileUpdates([]);
     setBuildStatus('');
     setPreviewUrl('');
 
-    enhancedChatMutation.mutate({
-      message: message.trim(),
+    // Create real AI executor like Leap
+    const newExecutor = new RealAIExecutor({
+      projectId,
       provider,
-      autoApply,
-      autoBuild,
-      autoPreview
+      apiClient: backend
+    }, {
+      onTodoUpdate: (todos: TodoItem[]) => {
+        setExecutionTodos(todos);
+      },
+      onStepComplete: (step: ExecutionStep, result: any) => {
+        console.log(`✅ Step completed: ${step.description}`, result);
+        
+        // Update UI based on step results
+        if (result.filesChanged?.length > 0) {
+          setFileUpdates(prev => [
+            ...prev,
+            ...result.filesChanged.map((file: string) => ({
+              filePath: file,
+              operation: 'created',
+              timestamp: new Date()
+            }))
+          ]);
+        }
+        
+        if (result.buildStarted) {
+          setBuildStatus('started');
+        }
+        
+        if (result.previewUrl) {
+          setPreviewUrl(result.previewUrl);
+        }
+      },
+      onStepError: (step: ExecutionStep, error: string) => {
+        console.error(`❌ Step failed: ${step.description}`, error);
+        toast({
+          title: 'Step Failed',
+          description: `${step.description}: ${error}`,
+          variant: 'destructive',
+        });
+      }
     });
+
+    setExecutor(newExecutor);
+    
+    // Create execution plan like I do
+    const todos = newExecutor.createRealExecutionPlan(message.trim());
+    setExecutionTodos(todos);
+
+    // Add user message
+    setMessages(prev => [...prev, {
+      role: 'user',
+      content: message.trim(),
+      timestamp: new Date()
+    }]);
+
+    setMessage('');
+
+    // Start step-by-step execution
+    if (autoApply) {
+      setIsExecutingSteps(true);
+      executeStepsSequentially(newExecutor);
+    }
+  };
+
+  const executeStepsSequentially = async (executor: RealAIExecutor) => {
+    try {
+      // Execute all steps with delays like I do
+      await executor.executeAll(3000); // 3 second delays between steps
+      
+      toast({
+        title: 'Execution Complete! 🎉',
+        description: 'All steps have been completed successfully',
+      });
+    } catch (error) {
+      console.error('Execution failed:', error);
+      toast({
+        title: 'Execution Failed',
+        description: 'Some steps failed during execution',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExecutingSteps(false);
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -461,6 +543,35 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
             </div>
           )}
           
+          {/* Leap-Style Execution Progress */}
+          {executionTodos.length > 0 && (
+            <div className="p-4 bg-gray-50 border-t border-gray-200">
+              <LeapStyleTodo
+                todos={executionTodos}
+                onUpdateTodo={(id, status) => {
+                  // Update todo status if needed
+                }}
+                onExecuteNext={() => {
+                  if (executor && executor.hasMoreSteps() && !isExecutingSteps) {
+                    setIsExecutingSteps(true);
+                    executor.executeNextStep().then((hasMore) => {
+                      if (!hasMore) {
+                        setIsExecutingSteps(false);
+                        toast({
+                          title: 'All Steps Complete! 🎉',
+                          description: 'Execution finished successfully',
+                        });
+                      } else {
+                        setIsExecutingSteps(false);
+                      }
+                    });
+                  }
+                }}
+                isExecuting={isExecutingSteps}
+              />
+            </div>
+          )}
+
           {messages.map((msg, index) => (
             <div key={index} className="space-y-2">
               <div className={cn(
@@ -580,15 +691,15 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Ask me to build something..."
-                disabled={enhancedChatMutation.isPending}
+                disabled={isExecutingSteps}
                 className="flex-1"
               />
               <Button 
                 type="submit" 
-                disabled={!message.trim() || enhancedChatMutation.isPending}
+                disabled={!message.trim() || isExecutingSteps}
                 className="gap-2"
               >
-                {enhancedChatMutation.isPending ? (
+                {isExecutingSteps ? (
                   <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Send className="h-4 w-4" />

@@ -33,6 +33,7 @@ import HistoryPanel from './HistoryPanel';
 import HelpDialog from './HelpDialog';
 import WelcomeScreen from './WelcomeScreen';
 import DebugInfo from './DebugInfo';
+import LeapLikeDemoPanel from './LeapLikeDemoPanel';
 
 export default function Dashboard() {
   const backend = useBackend();
@@ -48,6 +49,7 @@ export default function Dashboard() {
   const [useEnhancedMode, setUseEnhancedMode] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [showLeapDemo, setShowLeapDemo] = useState(false);
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -173,6 +175,15 @@ export default function Dashboard() {
                   >
                     <Wrench className="h-4 w-4" />
                     Tools
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowLeapDemo(true)}
+                    className="gap-2"
+                  >
+                    <Zap className="h-4 w-4" />
+                    See How Leap Works
                   </Button>
                   <Button
                     variant="outline"
@@ -328,6 +339,23 @@ export default function Dashboard() {
         onOpenChange={setShowTools}
       />
       
+      {/* Leap Demo Dialog */}
+      {showLeapDemo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-medium">How Leap Works - Live Demo</h3>
+              <Button size="sm" variant="ghost" onClick={() => setShowLeapDemo(false)}>
+                ×
+              </Button>
+            </div>
+            <div className="overflow-auto max-h-[80vh] p-6">
+              <LeapLikeDemoPanel />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Debug Dialog */}
       {showDebug && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
