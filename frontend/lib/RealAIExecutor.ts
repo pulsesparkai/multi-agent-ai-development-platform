@@ -235,12 +235,12 @@ export class RealAIExecutor extends LeapStyleExecutor {
 
   private createStepPrompt(stepDescription: string, stepIndex: number, totalSteps: number): string {
     const baseContext = `
-Original user request: "${this.userMessage}"
+You are helping create a React application. The user requested: "${this.userMessage}"
 
-This is step ${stepIndex + 1} of ${totalSteps} in a methodical implementation process.
-Current step focus: ${stepDescription}
+This is step ${stepIndex + 1} of ${totalSteps}.
+Current task: ${stepDescription}
 
-CRITICAL: You MUST generate actual code files using this exact JSON format at the end of your response:
+Generate the necessary code files for this step. Your response MUST end with a JSON code block in this exact format:
 
 \`\`\`json
 {
@@ -248,76 +248,19 @@ CRITICAL: You MUST generate actual code files using this exact JSON format at th
     {
       "operation": "create",
       "path": "src/App.tsx",
-      "content": "import React from 'react';\\n\\nfunction App() {\\n  return <div>Hello World</div>;\\n}\\n\\nexport default App;"
+      "content": "// File content here with \\n for newlines"
     }
   ]
 }
 \`\`\`
 
-Include ALL necessary files for a working project.
-`;
+Important:
+- Include complete, working code files
+- Use \\n for line breaks in content
+- Escape quotes with \\"
+- The JSON must be valid and parseable`;
 
-    // Step-specific instructions
-    const stepInstructions: Record<number, string> = {
-      0: `${baseContext}
-For this planning step:
-- Analyze the user's request in detail
-- Plan the overall structure and approach
-- Explain your approach but DO NOT generate any code yet
-- This is planning only - code generation comes in later steps`,
-
-      1: `${baseContext}
-For this file generation step:
-- Generate the core project structure files
-- Create package.json with all necessary dependencies
-- Generate index.html entry point
-- Create main.tsx entry file
-- Include vite.config.ts and other config files
-- Focus ONLY on the essential project setup files`,
-
-      2: `${baseContext}
-For this component step:
-- Create the main App.tsx component
-- Generate component files based on the plan
-- Build reusable components with proper TypeScript interfaces
-- Focus on component architecture and structure`,
-
-      3: `${baseContext}
-For this styling step:
-- Create comprehensive CSS/styling files
-- Add Tailwind configuration if needed
-- Include responsive design and modern UI
-- Generate style files that make the app look professional`,
-
-      4: `${baseContext}
-For this functionality step:
-- Add interactive features and business logic
-- Implement state management and event handlers
-- Create utility functions and hooks
-- Make the application fully functional`,
-
-      5: `${baseContext}
-For this application step:
-- Review and ensure all files are properly generated
-- Add any missing configuration or utility files
-- Prepare for building phase`,
-
-      6: `${baseContext}
-For this build step:
-- Verify all files are in place for building
-- Add any missing build configuration
-- Ensure the project can compile successfully`,
-
-      7: `${baseContext}
-For this preview step:
-- Final verification that everything is ready
-- Add any final touches or missing pieces
-- Ensure the application is ready for preview`
-    };
-
-    return stepInstructions[stepIndex] || `${baseContext}
-Execute: ${stepDescription}
-Generate the necessary files for this specific step.`;
+    return baseContext;
   }
 
   private generateId(): string {

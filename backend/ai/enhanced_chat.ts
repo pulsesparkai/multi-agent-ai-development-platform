@@ -118,101 +118,32 @@ export const enhancedChat = api<EnhancedChatRequest, EnhancedChatResponse>(
         console.warn('WebSocket broadcast failed:', wsError);
       }
 
-      // Enhanced system prompt for code generation
-      const enhancedSystemPrompt = `You are an expert web developer AI assistant. When users ask you to create websites, applications, or code, follow this EXACT response format:
+      // Enhanced system prompt that works better with Claude
+      const enhancedSystemPrompt = `You are a code generation assistant. When asked to create code or applications, you should generate complete, working code files.
 
-1. FIRST: Acknowledge what the user asked for by repeating their request
-2. SECOND: Say you'll begin working on it
-3. THIRD: Include a "Thought process" section explaining your approach
-4. FOURTH: Generate the code with organized, collapsible sections
-
-Example response format:
-"[User Request]"
-
-I'll help you [restate what they asked]. Let me start working on this.
-
-## Thought process
-
-[Brief explanation of your approach and what you'll build]
-
-## Implementation
-
-I'll create the following files:
-
-<details>
-<summary>📄 src/App.tsx - Main component</summary>
-
-\`\`\`tsx
-[component code here]
-\`\`\`
-
-</details>
-
-<details>
-<summary>📦 package.json - Project configuration</summary>
-
-\`\`\`json
-[package.json content]
-\`\`\`
-
-</details>
-
-CRITICAL: You MUST include file operations in your response. Use this exact JSON format at the end of your response:
+IMPORTANT: At the end of your response, you MUST include a JSON code block with the following structure:
 
 \`\`\`json
 {
   "files": [
     {
       "operation": "create",
-      "path": "src/App.tsx",
-      "content": "import React from 'react';\\n\\nfunction App() {\\n  return <div>Hello World</div>;\\n}\\n\\nexport default App;"
-    },
-    {
-      "operation": "create", 
-      "path": "package.json",
-      "content": "{\\n  \\"name\\": \\"my-project\\",\\n  \\"version\\": \\"1.0.0\\",\\n  \\"type\\": \\"module\\",\\n  \\"scripts\\": {\\n    \\"dev\\": \\"vite\\",\\n    \\"build\\": \\"vite build\\",\\n    \\"preview\\": \\"vite preview\\"\\n  },\\n  \\"dependencies\\": {\\n    \\"react\\": \\"^18.2.0\\",\\n    \\"react-dom\\": \\"^18.2.0\\"\\n  },\\n  \\"devDependencies\\": {\\n    \\"@types/react\\": \\"^18.2.0\\",\\n    \\"@types/react-dom\\": \\"^18.2.0\\",\\n    \\"@vitejs/plugin-react\\": \\"^4.0.0\\",\\n    \\"typescript\\": \\"^5.0.0\\",\\n    \\"vite\\": \\"^4.4.0\\",\\n    \\"tailwindcss\\": \\"^3.3.0\\",\\n    \\"autoprefixer\\": \\"^10.4.0\\",\\n    \\"postcss\\": \\"^8.4.0\\"\\n  }\\n}"
-    },
-    {
-      "operation": "create",
-      "path": "index.html",
-      "content": "<!DOCTYPE html>\\n<html lang=\\"en\\">\\n<head>\\n  <meta charset=\\"UTF-8\\">\\n  <meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1.0\\">\\n  <title>Vite + React + TS</title>\\n</head>\\n<body>\\n  <div id=\\"root\\"></div>\\n  <script type=\\"module\\" src=\\"/src/main.tsx\\"></script>\\n</body>\\n</html>"
-    },
-    {
-      "operation": "create",
-      "path": "src/main.tsx",
-      "content": "import React from 'react'\\nimport ReactDOM from 'react-dom/client'\\nimport App from './App.tsx'\\nimport './index.css'\\n\\nReactDOM.createRoot(document.getElementById('root')!).render(\\n  <React.StrictMode>\\n    <App />\\n  </React.StrictMode>,\\n)"
-    },
-    {
-      "operation": "create",
-      "path": "src/index.css",
-      "content": "@tailwind base;\\n@tailwind components;\\n@tailwind utilities;\\n\\nbody {\\n  margin: 0;\\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',\\n    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',\\n    sans-serif;\\n  -webkit-font-smoothing: antialiased;\\n  -moz-osx-font-smoothing: grayscale;\\n}"
-    },
-    {
-      "operation": "create",
-      "path": "vite.config.ts",
-      "content": "import { defineConfig } from 'vite'\\nimport react from '@vitejs/plugin-react'\\n\\nexport default defineConfig({\\n  plugins: [react()],\\n  server: {\\n    host: '0.0.0.0',\\n    port: 3000,\\n    cors: true\\n  }\\n})"
-    },
-    {
-      "operation": "create",
-      "path": "tailwind.config.js",
-      "content": "/** @type {import('tailwindcss').Config} */\\nexport default {\\n  content: [\\n    \\"./index.html\\",\\n    \\"./src/**/*.{js,ts,jsx,tsx}\\"\\n  ],\\n  theme: {\\n    extend: {},\\n  },\\n  plugins: [],\\n}"
-    },
-    {
-      "operation": "create",
-      "path": "postcss.config.js",
-      "content": "export default {\\n  plugins: {\\n    tailwindcss: {},\\n    autoprefixer: {},\\n  },\\n}"
+      "path": "path/to/file",
+      "content": "file content here"
     }
   ]
 }
 \`\`\`
 
-Operations can be: create, update, delete
-Always provide complete file contents, not just snippets.
-Include ALL necessary files for a working project (package.json, index.html, vite.config.ts, etc.).
+Make sure to:
+1. Include ALL necessary files for a complete, working application
+2. Use proper escaping for special characters in the content field (\\n for newlines, \\" for quotes)
+3. Include package.json, index.html, and all source files
+4. The JSON block MUST be valid JSON and appear at the very end of your response
 
 Current project: ${project.name}`;
 
-      // Add enhanced system prompt to messages
+      // Create messages array with system prompt
       const enhancedMessages: ChatMessage[] = [
         { role: 'system', content: enhancedSystemPrompt, timestamp: new Date() },
         ...messages
@@ -226,20 +157,9 @@ Current project: ${project.name}`;
         console.warn('WebSocket broadcast failed:', wsError);
       }
 
-      // Get AI response with streaming if supported
+      // Get AI response
       console.log('Calling AI with provider:', req.provider);
-      
-      let aiResponse: string;
-      if (req.provider === 'anthropic') {
-        // Use streaming for Anthropic
-        aiResponse = await callAIStreaming(req.provider, apiKey, enhancedMessages, req.model, 
-          (chunk: string) => {
-            // Broadcast each chunk as reasoning
-            wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', chunk, 'thinking').catch(console.warn);
-          });
-      } else {
-        aiResponse = await callAI(req.provider, apiKey, enhancedMessages, req.model);
-      }
+      const aiResponse = await callAI(req.provider, apiKey, enhancedMessages, req.model);
       
       console.log('AI response received, length:', aiResponse.length);
       
@@ -265,7 +185,7 @@ Current project: ${project.name}`;
         errors: []
       };
 
-      // Parse and apply file operations if auto-apply is enabled
+      // Try to parse and apply file operations
       if (req.autoApply) {
         console.log('Auto-apply enabled, parsing file operations...');
         try {
@@ -274,7 +194,7 @@ Current project: ${project.name}`;
           console.warn('WebSocket broadcast failed:', wsError);
         }
         
-        const fileOperations = parseFileOperations(aiResponse);
+        const fileOperations = parseFileOperationsImproved(aiResponse);
         console.log('Found file operations:', fileOperations.length);
         
         if (fileOperations.length > 0) {
@@ -297,7 +217,7 @@ Current project: ${project.name}`;
               payload: {
                 files: fileOperations.map(op => ({
                   path: op.path,
-                  content: op.content || ''
+                  content: op.content
                 }))
               },
               source: 'ai_chat'
@@ -383,6 +303,18 @@ Current project: ${project.name}`;
             response.errors?.push(`Workspace error: ${workspaceError}`);
           }
         }
+      } else {
+        // Even if autoApply is false, try parsing to report errors
+        try {
+          const fileOperations = parseFileOperationsImproved(aiResponse);
+          if (fileOperations.length === 0) {
+            console.warn('No file operations found in AI response');
+            response.errors?.push('Could not automatically apply files. Please check the response for code.');
+          }
+        } catch (parseError) {
+          console.error('File parsing error:', parseError);
+          response.errors?.push('Could not automatically apply files. Please check the response for code.');
+        }
       }
 
       return response;
@@ -405,217 +337,47 @@ Current project: ${project.name}`;
   }
 );
 
-// Parse file operations from AI response
-function parseFileOperations(response: string): { operation: string; path: string; content: string }[] {
+// Improved parsing function
+function parseFileOperationsImproved(response: string): { operation: string; path: string; content: string }[] {
   const operations: { operation: string; path: string; content: string }[] = [];
   
-  // Look for JSON code blocks with file operations
-  const jsonBlockRegex = /```json\s*\n([\s\S]*?)\n```/g;
-  let match;
+  // First, try to find the JSON block at the end of the response
+  const lastJsonBlockMatch = response.match(/```json\s*\n([\s\S]*?)\n```(?![\s\S]*```json)/);
   
-  while ((match = jsonBlockRegex.exec(response)) !== null) {
+  if (lastJsonBlockMatch) {
     try {
-      const jsonData = JSON.parse(match[1]);
+      const jsonData = JSON.parse(lastJsonBlockMatch[1]);
       
       if (jsonData.files && Array.isArray(jsonData.files)) {
         for (const file of jsonData.files) {
           if (file.operation && file.path && typeof file.content === 'string') {
             operations.push({
-              operation: file.operation,
+              operation: file.operation || 'create',
               path: file.path,
               content: file.content
             });
           }
         }
       }
-    } catch (parseError) {
-      console.error('Failed to parse JSON file operations:', parseError);
+    } catch (error) {
+      console.error('Failed to parse JSON:', error);
     }
   }
   
-  // Fallback 1: Look for 📄 markdown format blocks
+  // If no JSON found, try to extract code blocks with file indicators
   if (operations.length === 0) {
-    const fileBlockRegex = /📄\s+([^\s-]+)(?:\s*-[^`]*)?```(\w+)?\s*\n([\s\S]*?)\n```/g;
-    let fileMatch;
+    // Look for patterns like "// filename.ext" or "# filename.ext" followed by code
+    const codeBlockRegex = /```(\w+)?\s*\n(?:\/\/|#|--)\s*([\w\/.]+\.\w+)[^\n]*\n([\s\S]*?)```/g;
+    let match;
     
-    while ((fileMatch = fileBlockRegex.exec(response)) !== null) {
-      const path = fileMatch[1];
-      const content = fileMatch[3];
-      
-      if (path && content) {
-        operations.push({
-          operation: 'create',
-          path: path,
-          content: content
-        });
-      }
-    }
-  }
-
-  // Fallback 2: Look for old FILE_OPERATIONS format
-  if (operations.length === 0) {
-    const operationsRegex = /<FILE_OPERATIONS>\s*([\s\S]*?)\s*<\/FILE_OPERATIONS>/g;
-    let legacyMatch;
-    
-    while ((legacyMatch = operationsRegex.exec(response)) !== null) {
-      try {
-        const operationsJson = JSON.parse(legacyMatch[1]);
-        
-        if (Array.isArray(operationsJson)) {
-          for (const op of operationsJson) {
-            if (op.operation && op.path && typeof op.content === 'string') {
-              operations.push({
-                operation: op.operation,
-                path: op.path,
-                content: op.content
-              });
-            }
-          }
-        }
-      } catch (parseError) {
-        console.error('Failed to parse legacy file operations:', parseError);
-      }
-    }
-  }
-
-  // Fallback 3: Look for any code blocks with file paths in comments
-  if (operations.length === 0) {
-    const genericBlockRegex = /(?:```(\w+)?\s*\n(?:\/\/ |# |\/\* )?([^\n]+)\n([\s\S]*?)\n```)/g;
-    let genericMatch;
-    
-    while ((genericMatch = genericBlockRegex.exec(response)) !== null) {
-      const language = genericMatch[1];
-      const possiblePath = genericMatch[2];
-      const content = genericMatch[3];
-      
-      // Check if the comment looks like a file path
-      if (possiblePath && (possiblePath.includes('.') || possiblePath.includes('/'))) {
-        const cleanPath = possiblePath.replace(/^(\/\/ |# |\/\* |\* )/, '').replace(/\s*\*\/$/, '').trim();
-        
-        if (cleanPath && content) {
-          operations.push({
-            operation: 'create',
-            path: cleanPath,
-            content: content
-          });
-        }
-      }
+    while ((match = codeBlockRegex.exec(response)) !== null) {
+      operations.push({
+        operation: 'create',
+        path: match[2],
+        content: match[3].trim()
+      });
     }
   }
   
   return operations;
-}
-
-// Streaming AI call function for live thinking display
-async function callAIStreaming(
-  provider: string, 
-  apiKey: string, 
-  messages: ChatMessage[], 
-  model?: string,
-  onChunk?: (chunk: string) => void
-): Promise<string> {
-  if (provider === 'anthropic') {
-    return await callAnthropicStreaming(apiKey, messages, model || 'claude-3-5-sonnet-20241022', onChunk);
-  } else {
-    // Fallback to non-streaming for other providers
-    return await callAI(provider, apiKey, messages, model);
-  }
-}
-
-async function callAnthropicStreaming(
-  apiKey: string, 
-  messages: ChatMessage[], 
-  model: string,
-  onChunk?: (chunk: string) => void
-): Promise<string> {
-  try {
-    // Extract system message if present
-    const systemMessage = messages.find(m => m.role === 'system')?.content;
-    const userMessages = messages.filter(m => m.role !== 'system');
-
-    const requestBody: any = {
-      model,
-      max_tokens: 4000,
-      stream: true,
-      messages: userMessages.map(m => ({ 
-        role: m.role, 
-        content: m.content 
-      })),
-    };
-
-    // Add system message if present
-    if (systemMessage) {
-      requestBody.system = systemMessage;
-    }
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Anthropic API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText,
-      });
-      throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
-    }
-
-    let fullResponse = '';
-    let buffer = '';
-    
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('No response body reader available');
-    }
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        // Decode the chunk
-        const chunk = new TextDecoder().decode(value);
-        buffer += chunk;
-
-        // Process complete lines
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              if (data.type === 'content_block_delta' && data.delta?.text) {
-                const text = data.delta.text;
-                fullResponse += text;
-                
-                // Send chunk for live display
-                if (onChunk) {
-                  onChunk(text);
-                }
-              }
-            } catch (parseError) {
-              // Ignore JSON parse errors for non-JSON lines
-            }
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
-
-    return fullResponse || 'No response from AI';
-  } catch (error) {
-    console.error('Anthropic streaming call failed:', error);
-    throw error;
-  }
 }

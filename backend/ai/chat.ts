@@ -216,20 +216,18 @@ async function callOpenAI(apiKey: string, messages: ChatMessage[], model: string
 
 async function callAnthropic(apiKey: string, messages: ChatMessage[], model: string): Promise<string> {
   try {
-    // Extract system message if present
     const systemMessage = messages.find(m => m.role === 'system')?.content;
     const userMessages = messages.filter(m => m.role !== 'system');
 
     const requestBody: any = {
-      model,
+      model: model || 'claude-3-opus-20240229',  // Use a valid model
       max_tokens: 4000,
       messages: userMessages.map(m => ({ 
-        role: m.role, 
+        role: m.role === 'assistant' ? 'assistant' : 'user',  
         content: m.content 
       })),
     };
 
-    // Add system message if present
     if (systemMessage) {
       requestBody.system = systemMessage;
     }
@@ -245,13 +243,9 @@ async function callAnthropic(apiKey: string, messages: ChatMessage[], model: str
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Anthropic API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText,
-      });
-      throw APIError.internal(`Anthropic API error: ${response.status} ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({ error: response.statusText }));
+      console.error('Anthropic API error:', errorData);
+      throw APIError.internal(`Anthropic API error: ${JSON.stringify(errorData)}`);
     }
 
     const data = await response.json() as { content: Array<{ text: string }> };
