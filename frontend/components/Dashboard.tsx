@@ -31,6 +31,8 @@ import ToolsPanel from './ToolsPanel';
 import OfflineModeDialog from './OfflineModeDialog';
 import HistoryPanel from './HistoryPanel';
 import HelpDialog from './HelpDialog';
+import WelcomeScreen from './WelcomeScreen';
+import DebugInfo from './DebugInfo';
 
 export default function Dashboard() {
   const backend = useBackend();
@@ -44,6 +46,8 @@ export default function Dashboard() {
   const [showTools, setShowTools] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [useEnhancedMode, setUseEnhancedMode] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -54,6 +58,28 @@ export default function Dashboard() {
     queryKey: ['projects'],
     queryFn: () => backend.projects.list(),
   });
+
+  const { data: apiKeys } = useQuery({
+    queryKey: ['hasApiKeys'],
+    queryFn: async () => {
+      try {
+        const result = await backend.ai.listKeys();
+        return result.apiKeys.length > 0;
+      } catch {
+        return false;
+      }
+    },
+  });
+
+  // Show welcome screen for new users with no API keys and no projects
+  const shouldShowWelcome = showWelcome || (
+    apiKeys === false && 
+    (!projects?.projects || projects.projects.length === 0)
+  );
+
+  if (shouldShowWelcome) {
+    return <WelcomeScreen onComplete={() => setShowWelcome(false)} />;
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -147,6 +173,15 @@ export default function Dashboard() {
                   >
                     <Wrench className="h-4 w-4" />
                     Tools
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDebug(true)}
+                    className="gap-2"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Debug
                   </Button>
                   <HelpDialog />
                 </>
@@ -292,6 +327,23 @@ export default function Dashboard() {
         open={showTools}
         onOpenChange={setShowTools}
       />
+      
+      {/* Debug Dialog */}
+      {showDebug && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-medium">Debug Information</h3>
+              <Button size="sm" variant="ghost" onClick={() => setShowDebug(false)}>
+                ×
+              </Button>
+            </div>
+            <div className="overflow-auto">
+              <DebugInfo projectId={selectedProject || undefined} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

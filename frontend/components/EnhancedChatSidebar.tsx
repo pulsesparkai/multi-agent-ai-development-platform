@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { useBackend } from '../hooks/useBackend';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { config } from '../config';
+import APIKeySettings from './APIKeySettings';
 
 interface EnhancedChatSidebarProps {
   projectId: string;
@@ -69,6 +70,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
   }>>([]);
   const [buildStatus, setBuildStatus] = useState<string>('');
   const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [showAPIKeySettings, setShowAPIKeySettings] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const backend = useBackend();
@@ -129,9 +131,10 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
     queryKey: ['apiKeys', provider],
     queryFn: async () => {
       try {
-        // Mock API key check for now - replace with actual implementation
-        return "dummy-key";
+        const result = await backend.ai.listKeys();
+        return result.apiKeys.find(key => key.provider === provider);
       } catch (error) {
+        console.error('Failed to fetch API keys:', error);
         return null;
       }
     },
@@ -261,7 +264,26 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
     }
   }, [messages]);
 
-  const hasApiKey = !!apiKeys;
+  const hasApiKey = apiKeys?.hasKey || false;
+
+  if (showAPIKeySettings) {
+    return (
+      <div className="w-96 border-l border-border bg-card flex flex-col h-full overflow-hidden">
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <h3 className="font-medium">API Key Settings</h3>
+          <Button size="sm" variant="ghost" onClick={() => setShowAPIKeySettings(false)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <APIKeySettings 
+            onClose={() => setShowAPIKeySettings(false)} 
+            projectId={projectId}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-96 border-l border-border bg-card flex flex-col h-full overflow-hidden">
@@ -545,7 +567,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
             <Button 
               size="sm" 
               variant="outline"
-              onClick={() => window.open('/settings', '_blank')}
+              onClick={() => setShowAPIKeySettings(true)}
             >
               <Settings className="h-4 w-4 mr-2" />
               Configure API Keys
