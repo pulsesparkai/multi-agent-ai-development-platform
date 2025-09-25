@@ -3,7 +3,7 @@
 // For production, use pk_live_... keys to avoid rate limits
 export const clerkPublishableKey = 
   process.env.CLERK_PUBLISHABLE_KEY || 
-  "pk_live_clerkPublishableKey"; // Replace with actual production key
+  "pk_test_bWVldC1saW9uZXNzLTEzLmNsZXJrLmFjY291bnRzLmRldiQ";
 
 // API base URL for backend calls
 export const apiBaseUrl = 

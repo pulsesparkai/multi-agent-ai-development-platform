@@ -122,6 +122,8 @@ import {
     chat as api_ai_chat_chat,
     getSession as api_ai_chat_getSession
 } from "~backend/ai/chat";
+import { clearAllKeys as api_ai_clear_keys_clearAllKeys } from "~backend/ai/clear_keys";
+import { debugAPIKeys as api_ai_debug_debugAPIKeys } from "~backend/ai/debug";
 import {
     listKeys as api_ai_keys_listKeys,
     setKey as api_ai_keys_setKey
@@ -135,6 +137,8 @@ export namespace ai {
         constructor(baseClient: BaseClient) {
             this.baseClient = baseClient
             this.chat = this.chat.bind(this)
+            this.clearAllKeys = this.clearAllKeys.bind(this)
+            this.debugAPIKeys = this.debugAPIKeys.bind(this)
             this.getSession = this.getSession.bind(this)
             this.listKeys = this.listKeys.bind(this)
             this.setKey = this.setKey.bind(this)
@@ -147,6 +151,24 @@ export namespace ai {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/ai/chat`, {method: "POST", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ai_chat_chat>
+        }
+
+        /**
+         * Clear all API keys for the current user (for debugging/recovery)
+         */
+        public async clearAllKeys(): Promise<ResponseType<typeof api_ai_clear_keys_clearAllKeys>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/ai/keys/clear`, {method: "DELETE", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ai_clear_keys_clearAllKeys>
+        }
+
+        /**
+         * Debug endpoint to check API key status
+         */
+        public async debugAPIKeys(): Promise<ResponseType<typeof api_ai_debug_debugAPIKeys>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/ai/debug-keys`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ai_debug_debugAPIKeys>
         }
 
         /**
@@ -533,6 +555,24 @@ import {
     getSessionWithFallback as api_multiagent_fallback_getSessionWithFallback
 } from "~backend/multiagent/fallback";
 import {
+    applyPersonaToAgent as api_multiagent_personas_applyPersonaToAgent,
+    createPersona as api_multiagent_personas_createPersona,
+    deletePersona as api_multiagent_personas_deletePersona,
+    getPersona as api_multiagent_personas_getPersona,
+    getPopularPersonas as api_multiagent_personas_getPopularPersonas,
+    listPersonas as api_multiagent_personas_listPersonas,
+    removePersonaFromAgent as api_multiagent_personas_removePersonaFromAgent,
+    searchPersonas as api_multiagent_personas_searchPersonas,
+    updatePersona as api_multiagent_personas_updatePersona
+} from "~backend/multiagent/personas";
+import {
+    assignRoles as api_multiagent_role_assignment_assignRoles,
+    createRoleRule as api_multiagent_role_assignment_createRoleRule,
+    getRoleHistory as api_multiagent_role_assignment_getRoleHistory,
+    listRoleRules as api_multiagent_role_assignment_listRoleRules,
+    triggerRoleReassignment as api_multiagent_role_assignment_triggerRoleReassignment
+} from "~backend/multiagent/role_assignment";
+import {
     createTeam as api_multiagent_teams_createTeam,
     getTeam as api_multiagent_teams_getTeam,
     listTeams as api_multiagent_teams_listTeams,
@@ -546,25 +586,69 @@ export namespace multiagent {
 
         constructor(baseClient: BaseClient) {
             this.baseClient = baseClient
+            this.applyPersonaToAgent = this.applyPersonaToAgent.bind(this)
+            this.assignRoles = this.assignRoles.bind(this)
             this.controlSession = this.controlSession.bind(this)
             this.createAgent = this.createAgent.bind(this)
+            this.createPersona = this.createPersona.bind(this)
+            this.createRoleRule = this.createRoleRule.bind(this)
             this.createTeam = this.createTeam.bind(this)
             this.deleteAgent = this.deleteAgent.bind(this)
+            this.deletePersona = this.deletePersona.bind(this)
             this.fallbackToSingleAgent = this.fallbackToSingleAgent.bind(this)
             this.getBudget = this.getBudget.bind(this)
             this.getBudgetOverview = this.getBudgetOverview.bind(this)
             this.getBudgetUsage = this.getBudgetUsage.bind(this)
+            this.getPersona = this.getPersona.bind(this)
+            this.getPopularPersonas = this.getPopularPersonas.bind(this)
+            this.getRoleHistory = this.getRoleHistory.bind(this)
             this.getSession = this.getSession.bind(this)
             this.getSessionWithFallback = this.getSessionWithFallback.bind(this)
             this.getTeam = this.getTeam.bind(this)
+            this.listPersonas = this.listPersonas.bind(this)
+            this.listRoleRules = this.listRoleRules.bind(this)
             this.listSessions = this.listSessions.bind(this)
             this.listTeams = this.listTeams.bind(this)
+            this.removePersonaFromAgent = this.removePersonaFromAgent.bind(this)
             this.resetBudgetUsage = this.resetBudgetUsage.bind(this)
+            this.searchPersonas = this.searchPersonas.bind(this)
             this.startSession = this.startSession.bind(this)
             this.toggleAgent = this.toggleAgent.bind(this)
             this.toggleTeam = this.toggleTeam.bind(this)
+            this.triggerRoleReassignment = this.triggerRoleReassignment.bind(this)
             this.updateAgent = this.updateAgent.bind(this)
             this.updateBudget = this.updateBudget.bind(this)
+            this.updatePersona = this.updatePersona.bind(this)
+        }
+
+        /**
+         * Applies a persona to an agent
+         */
+        public async applyPersonaToAgent(params: RequestType<typeof api_multiagent_personas_applyPersonaToAgent>): Promise<ResponseType<typeof api_multiagent_personas_applyPersonaToAgent>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                personaId: params.personaId,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/agents/${encodeURIComponent(params.agentId)}/apply-persona`, {method: "POST", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_personas_applyPersonaToAgent>
+        }
+
+        /**
+         * Analyzes project requirements and assigns optimal roles to agents
+         */
+        public async assignRoles(params: RequestType<typeof api_multiagent_role_assignment_assignRoles>): Promise<ResponseType<typeof api_multiagent_role_assignment_assignRoles>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                currentWorkload:     params.currentWorkload,
+                projectRequirements: params.projectRequirements,
+                sessionContext:      params.sessionContext,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/teams/${encodeURIComponent(params.teamId)}/assign-roles`, {method: "POST", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_role_assignment_assignRoles>
         }
 
         /**
@@ -591,6 +675,24 @@ export namespace multiagent {
         }
 
         /**
+         * Creates a new custom persona
+         */
+        public async createPersona(params: RequestType<typeof api_multiagent_personas_createPersona>): Promise<ResponseType<typeof api_multiagent_personas_createPersona>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/personas`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_personas_createPersona>
+        }
+
+        /**
+         * Creates a new role assignment rule
+         */
+        public async createRoleRule(params: RequestType<typeof api_multiagent_role_assignment_createRoleRule>): Promise<ResponseType<typeof api_multiagent_role_assignment_createRoleRule>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/role-rules`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_role_assignment_createRoleRule>
+        }
+
+        /**
          * Creates a new agent team
          */
         public async createTeam(params: RequestType<typeof api_multiagent_teams_createTeam>): Promise<ResponseType<typeof api_multiagent_teams_createTeam>> {
@@ -606,6 +708,15 @@ export namespace multiagent {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/multiagent/agents/${encodeURIComponent(params.agentId)}`, {method: "DELETE", body: undefined})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_agents_deleteAgent>
+        }
+
+        /**
+         * Deletes a persona (only owner can delete)
+         */
+        public async deletePersona(params: { personaId: string }): Promise<ResponseType<typeof api_multiagent_personas_deletePersona>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/personas/${encodeURIComponent(params.personaId)}`, {method: "DELETE", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_personas_deletePersona>
         }
 
         /**
@@ -650,6 +761,38 @@ export namespace multiagent {
         }
 
         /**
+         * Gets a specific persona
+         */
+        public async getPersona(params: { personaId: string }): Promise<ResponseType<typeof api_multiagent_personas_getPersona>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/personas/${encodeURIComponent(params.personaId)}`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_personas_getPersona>
+        }
+
+        /**
+         * Gets popular public personas
+         */
+        public async getPopularPersonas(params: RequestType<typeof api_multiagent_personas_getPopularPersonas>): Promise<ResponseType<typeof api_multiagent_personas_getPopularPersonas>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                limit: params.limit === undefined ? undefined : String(params.limit),
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/personas/popular`, {query, method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_personas_getPopularPersonas>
+        }
+
+        /**
+         * Get role assignment history for a team
+         */
+        public async getRoleHistory(params: { teamId: string }): Promise<ResponseType<typeof api_multiagent_role_assignment_getRoleHistory>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/teams/${encodeURIComponent(params.teamId)}/role-history`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_role_assignment_getRoleHistory>
+        }
+
+        /**
          * Gets session status and messages
          */
         public async getSession(params: { sessionId: string }): Promise<ResponseType<typeof api_multiagent_execution_getSession>> {
@@ -674,6 +817,30 @@ export namespace multiagent {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/multiagent/teams/${encodeURIComponent(params.teamId)}`, {method: "GET", body: undefined})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_teams_getTeam>
+        }
+
+        /**
+         * Lists personas (user's own + public ones)
+         */
+        public async listPersonas(params: RequestType<typeof api_multiagent_personas_listPersonas>): Promise<ResponseType<typeof api_multiagent_personas_listPersonas>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                includePublic: params.includePublic === undefined ? undefined : String(params.includePublic),
+                tags:          params.tags?.map((v) => v),
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/personas`, {query, method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_personas_listPersonas>
+        }
+
+        /**
+         * Lists role assignment rules for a team
+         */
+        public async listRoleRules(params: { teamId: string }): Promise<ResponseType<typeof api_multiagent_role_assignment_listRoleRules>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/teams/${encodeURIComponent(params.teamId)}/role-rules`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_role_assignment_listRoleRules>
         }
 
         /**
@@ -706,12 +873,36 @@ export namespace multiagent {
         }
 
         /**
+         * Removes persona from an agent (reverts to default)
+         */
+        public async removePersonaFromAgent(params: { agentId: string }): Promise<ResponseType<typeof api_multiagent_personas_removePersonaFromAgent>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/agents/${encodeURIComponent(params.agentId)}/persona`, {method: "DELETE", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_personas_removePersonaFromAgent>
+        }
+
+        /**
          * Resets budget usage for a team (admin function)
          */
         public async resetBudgetUsage(params: { teamId: string }): Promise<ResponseType<typeof api_multiagent_budget_resetBudgetUsage>> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/multiagent/budget/${encodeURIComponent(params.teamId)}/reset`, {method: "POST", body: undefined})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_budget_resetBudgetUsage>
+        }
+
+        /**
+         * Searches personas by tags or keywords
+         */
+        public async searchPersonas(params: RequestType<typeof api_multiagent_personas_searchPersonas>): Promise<ResponseType<typeof api_multiagent_personas_searchPersonas>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                query: params.query,
+                tags:  params.tags?.map((v) => v),
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/personas/search`, {query, method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_personas_searchPersonas>
         }
 
         /**
@@ -752,14 +943,32 @@ export namespace multiagent {
         }
 
         /**
+         * Automatically triggers role reassignment based on session events
+         */
+        public async triggerRoleReassignment(params: RequestType<typeof api_multiagent_role_assignment_triggerRoleReassignment>): Promise<ResponseType<typeof api_multiagent_role_assignment_triggerRoleReassignment>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                context: params.context,
+                trigger: params.trigger,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/teams/${encodeURIComponent(params.teamId)}/trigger-reassignment`, {method: "POST", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_role_assignment_triggerRoleReassignment>
+        }
+
+        /**
          * Updates an agent
          */
         public async updateAgent(params: RequestType<typeof api_multiagent_agents_updateAgent>): Promise<ResponseType<typeof api_multiagent_agents_updateAgent>> {
             // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
             const body: Record<string, any> = {
+                availableRoles: params.availableRoles,
+                canAdaptRole:   params.canAdaptRole,
                 executionOrder: params.executionOrder,
                 model:          params.model,
                 name:           params.name,
+                personaId:      params.personaId,
                 provider:       params.provider,
                 role:           params.role,
                 systemPrompt:   params.systemPrompt,
@@ -778,6 +987,25 @@ export namespace multiagent {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/multiagent/budget`, {method: "PATCH", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_budget_updateBudget>
+        }
+
+        /**
+         * Updates a persona (only owner can update)
+         */
+        public async updatePersona(params: RequestType<typeof api_multiagent_personas_updatePersona>): Promise<ResponseType<typeof api_multiagent_personas_updatePersona>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                description:   params.description,
+                isPublic:      params.isPublic,
+                name:          params.name,
+                suggestedRole: params.suggestedRole,
+                systemPrompt:  params.systemPrompt,
+                tags:          params.tags,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/multiagent/personas/${encodeURIComponent(params.personaId)}`, {method: "PATCH", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_multiagent_personas_updatePersona>
         }
     }
 }
