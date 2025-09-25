@@ -18,7 +18,9 @@ import { Button } from '@/components/ui/button';
 import { useBackend } from '../hooks/useBackend';
 import ProjectList from './ProjectList';
 import CodeEditor from './CodeEditor';
+import EnhancedCodeEditor from './EnhancedCodeEditor';
 import ChatSidebar from './ChatSidebar';
+import EnhancedChatSidebar from './EnhancedChatSidebar';
 import MultiAgentDashboard from './MultiAgentDashboard';
 import SimpleGenerator from './SimpleGenerator';
 import SettingsDialog from './SettingsDialog';
@@ -41,6 +43,7 @@ export default function Dashboard() {
   const [showVersionControl, setShowVersionControl] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [useEnhancedMode, setUseEnhancedMode] = useState(true);
 
   const { data: user } = useQuery({
     queryKey: ['user'],
@@ -179,13 +182,23 @@ export default function Dashboard() {
         {/* Code Editor */}
         <div className="flex-1 relative">
           {selectedProject ? (
-            <CodeEditor
-              projectId={selectedProject}
-              onToggleChat={() => setShowChat(!showChat)}
-              onToggleMultiAgent={() => setShowMultiAgent(!showMultiAgent)}
-              showChat={showChat}
-              showMultiAgent={showMultiAgent}
-            />
+            useEnhancedMode ? (
+              <EnhancedCodeEditor
+                projectId={selectedProject}
+                onToggleChat={() => setShowChat(!showChat)}
+                onToggleMultiAgent={() => setShowMultiAgent(!showMultiAgent)}
+                showChat={showChat}
+                showMultiAgent={showMultiAgent}
+              />
+            ) : (
+              <CodeEditor
+                projectId={selectedProject}
+                onToggleChat={() => setShowChat(!showChat)}
+                onToggleMultiAgent={() => setShowMultiAgent(!showMultiAgent)}
+                showChat={showChat}
+                showMultiAgent={showMultiAgent}
+              />
+            )
           ) : (
             <div className="flex items-center justify-center h-full bg-muted/30">
               <div className="text-center">
@@ -222,14 +235,25 @@ export default function Dashboard() {
 
         {/* Chat Sidebar */}
         {selectedProject && showChat && !showMultiAgent && !showSimpleGenerator && (
-          <ChatSidebar
-            projectId={selectedProject}
-            onClose={() => setShowChat(false)}
-            onSwitchToMultiAgent={() => {
-              setShowChat(false);
-              setShowMultiAgent(true);
-            }}
-          />
+          useEnhancedMode ? (
+            <EnhancedChatSidebar
+              projectId={selectedProject}
+              onClose={() => setShowChat(false)}
+              onSwitchToMultiAgent={() => {
+                setShowChat(false);
+                setShowMultiAgent(true);
+              }}
+            />
+          ) : (
+            <ChatSidebar
+              projectId={selectedProject}
+              onClose={() => setShowChat(false)}
+              onSwitchToMultiAgent={() => {
+                setShowChat(false);
+                setShowMultiAgent(true);
+              }}
+            />
+          )
         )}
       </div>
 
