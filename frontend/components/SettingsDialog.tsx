@@ -24,6 +24,27 @@ interface SettingsDialogProps {
 export default function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [debugInfo, setDebugInfo] = useState<any>(null);
 
+  const clearKeysQuery = useMutation({
+    mutationFn: () => backend.ai.clearAllKeys(),
+    onSuccess: (data) => {
+      console.log('Cleared keys:', data);
+      toast({
+        title: 'Keys cleared',
+        description: `Cleared ${data.clearedCount} corrupted API keys. Please re-enter your keys.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
+      setDebugInfo(null);
+    },
+    onError: (error) => {
+      console.error('Clear failed:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to clear keys',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const testKeysQuery = useMutation({
     mutationFn: () => backend.ai.debugAPIKeys(),
     onSuccess: (data) => {
@@ -182,7 +203,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
                 Your API keys are encrypted and stored securely. They are only used to make
                 requests to the respective AI providers on your behalf.
               </p>
-              <div className="mt-4">
+              <div className="mt-4 space-x-2">
                 <Button 
                   size="sm" 
                   variant="outline" 
@@ -190,6 +211,14 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
                   disabled={testKeysQuery.isPending}
                 >
                   Debug API Keys
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="destructive" 
+                  onClick={() => clearKeysQuery.mutate()}
+                  disabled={clearKeysQuery.isPending}
+                >
+                  Clear Corrupted Keys
                 </Button>
                 {debugInfo && (
                   <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto max-h-40">
