@@ -46,6 +46,7 @@ export class Client {
     public readonly templates: templates.ServiceClient
     public readonly tools: tools.ServiceClient
     public readonly versioncontrol: versioncontrol.ServiceClient
+    public readonly workspace: workspace.ServiceClient
     private readonly options: ClientOptions
     private readonly target: string
 
@@ -73,6 +74,7 @@ export class Client {
         this.templates = new templates.ServiceClient(base)
         this.tools = new tools.ServiceClient(base)
         this.versioncontrol = new versioncontrol.ServiceClient(base)
+        this.workspace = new workspace.ServiceClient(base)
     }
 
     /**
@@ -124,6 +126,7 @@ import {
 } from "~backend/ai/chat";
 import { clearAllKeys as api_ai_clear_keys_clearAllKeys } from "~backend/ai/clear_keys";
 import { debugAPIKeys as api_ai_debug_debugAPIKeys } from "~backend/ai/debug";
+import { enhancedChat as api_ai_enhanced_chat_enhancedChat } from "~backend/ai/enhanced_chat";
 import {
     listKeys as api_ai_keys_listKeys,
     setKey as api_ai_keys_setKey
@@ -139,6 +142,7 @@ export namespace ai {
             this.chat = this.chat.bind(this)
             this.clearAllKeys = this.clearAllKeys.bind(this)
             this.debugAPIKeys = this.debugAPIKeys.bind(this)
+            this.enhancedChat = this.enhancedChat.bind(this)
             this.getSession = this.getSession.bind(this)
             this.listKeys = this.listKeys.bind(this)
             this.setKey = this.setKey.bind(this)
@@ -169,6 +173,15 @@ export namespace ai {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/ai/debug-keys`, {method: "GET", body: undefined})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ai_debug_debugAPIKeys>
+        }
+
+        /**
+         * Enhanced chat that can apply file changes, build, and preview
+         */
+        public async enhancedChat(params: RequestType<typeof api_ai_enhanced_chat_enhancedChat>): Promise<ResponseType<typeof api_ai_enhanced_chat_enhancedChat>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/ai/enhanced-chat`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_ai_enhanced_chat_enhancedChat>
         }
 
         /**
@@ -1295,6 +1308,180 @@ export namespace versioncontrol {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/github/repositories`, {query, method: "GET", body: undefined})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_versioncontrol_github_listRepositories>
+        }
+    }
+}
+
+/**
+ * Import the endpoint handlers to derive the types for the client.
+ */
+import {
+    getBuildStatus as api_workspace_build_getBuildStatus,
+    getPreviewUrl as api_workspace_build_getPreviewUrl,
+    startBuild as api_workspace_build_startBuild,
+    startPreview as api_workspace_build_startPreview,
+    stopPreview as api_workspace_build_stopPreview
+} from "~backend/workspace/build";
+import {
+    applyFileChanges as api_workspace_filesystem_applyFileChanges,
+    getFileDiff as api_workspace_filesystem_getFileDiff,
+    revertChanges as api_workspace_filesystem_revertChanges
+} from "~backend/workspace/filesystem";
+import {
+    executeAIAction as api_workspace_manager_executeAIAction,
+    getWorkspaceStatus as api_workspace_manager_getWorkspaceStatus
+} from "~backend/workspace/manager";
+
+export namespace workspace {
+
+    export class ServiceClient {
+        private baseClient: BaseClient
+
+        constructor(baseClient: BaseClient) {
+            this.baseClient = baseClient
+            this.applyFileChanges = this.applyFileChanges.bind(this)
+            this.executeAIAction = this.executeAIAction.bind(this)
+            this.getBuildStatus = this.getBuildStatus.bind(this)
+            this.getFileDiff = this.getFileDiff.bind(this)
+            this.getPreviewUrl = this.getPreviewUrl.bind(this)
+            this.getWorkspaceStatus = this.getWorkspaceStatus.bind(this)
+            this.revertChanges = this.revertChanges.bind(this)
+            this.startBuild = this.startBuild.bind(this)
+            this.startPreview = this.startPreview.bind(this)
+            this.stopPreview = this.stopPreview.bind(this)
+        }
+
+        /**
+         * Apply file changes from AI responses
+         */
+        public async applyFileChanges(params: RequestType<typeof api_workspace_filesystem_applyFileChanges>): Promise<ResponseType<typeof api_workspace_filesystem_applyFileChanges>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                changes:   params.changes,
+                sessionId: params.sessionId,
+                source:    params.source,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/apply-changes`, {method: "POST", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_filesystem_applyFileChanges>
+        }
+
+        /**
+         * Execute AI-generated actions (from chat or multi-agent)
+         */
+        public async executeAIAction(params: RequestType<typeof api_workspace_manager_executeAIAction>): Promise<ResponseType<typeof api_workspace_manager_executeAIAction>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                action:    params.action,
+                payload:   params.payload,
+                sessionId: params.sessionId,
+                source:    params.source,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/ai-action`, {method: "POST", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_manager_executeAIAction>
+        }
+
+        /**
+         * Get build status
+         */
+        public async getBuildStatus(params: RequestType<typeof api_workspace_build_getBuildStatus>): Promise<ResponseType<typeof api_workspace_build_getBuildStatus>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                buildId: params.buildId,
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/build/status`, {query, method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_build_getBuildStatus>
+        }
+
+        /**
+         * Get diff for a file change
+         */
+        public async getFileDiff(params: RequestType<typeof api_workspace_filesystem_getFileDiff>): Promise<ResponseType<typeof api_workspace_filesystem_getFileDiff>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                changeId: params.changeId,
+                filePath: params.filePath,
+            })
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/diff`, {query, method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_filesystem_getFileDiff>
+        }
+
+        /**
+         * Get preview URL
+         */
+        public async getPreviewUrl(params: { projectId: string }): Promise<ResponseType<typeof api_workspace_build_getPreviewUrl>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/preview/url`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_build_getPreviewUrl>
+        }
+
+        /**
+         * Get workspace status
+         */
+        public async getWorkspaceStatus(params: { projectId: string }): Promise<ResponseType<typeof api_workspace_manager_getWorkspaceStatus>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/status`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_manager_getWorkspaceStatus>
+        }
+
+        /**
+         * Revert file changes
+         */
+        public async revertChanges(params: RequestType<typeof api_workspace_filesystem_revertChanges>): Promise<ResponseType<typeof api_workspace_filesystem_revertChanges>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                changeIds: params.changeIds,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/revert`, {method: "POST", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_filesystem_revertChanges>
+        }
+
+        /**
+         * Start a build process
+         */
+        public async startBuild(params: RequestType<typeof api_workspace_build_startBuild>): Promise<ResponseType<typeof api_workspace_build_startBuild>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                command:             params.command,
+                installDependencies: params.installDependencies,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/build`, {method: "POST", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_build_startBuild>
+        }
+
+        /**
+         * Start preview server
+         */
+        public async startPreview(params: RequestType<typeof api_workspace_build_startPreview>): Promise<ResponseType<typeof api_workspace_build_startPreview>> {
+            // Construct the body with only the fields which we want encoded within the body (excluding query string or header fields)
+            const body: Record<string, any> = {
+                framework: params.framework,
+                port:      params.port,
+            }
+
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/preview`, {method: "POST", body: JSON.stringify(body)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_build_startPreview>
+        }
+
+        /**
+         * Stop preview server
+         */
+        public async stopPreview(params: { projectId: string }): Promise<ResponseType<typeof api_workspace_build_stopPreview>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/preview`, {method: "DELETE", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_build_stopPreview>
         }
     }
 }

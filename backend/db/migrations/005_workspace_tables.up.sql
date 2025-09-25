@@ -1,7 +1,7 @@
 -- File changes tracking
 CREATE TABLE IF NOT EXISTS file_changes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   operation VARCHAR(10) NOT NULL CHECK (operation IN ('create', 'update', 'delete')),
   file_path VARCHAR(500) NOT NULL,
   content TEXT,
@@ -20,7 +20,7 @@ CREATE INDEX idx_file_changes_session_id ON file_changes(session_id);
 -- Build status tracking
 CREATE TABLE IF NOT EXISTS build_status (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   status VARCHAR(20) NOT NULL CHECK (status IN ('running', 'completed', 'failed')),
   output TEXT,
   error TEXT,
@@ -34,7 +34,7 @@ CREATE INDEX idx_build_status_started_at ON build_status(started_at);
 -- Preview servers tracking
 CREATE TABLE IF NOT EXISTS preview_servers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   url VARCHAR(200) NOT NULL,
   port INTEGER NOT NULL,
   status VARCHAR(20) NOT NULL CHECK (status IN ('starting', 'running', 'stopped', 'error')),
@@ -48,7 +48,7 @@ CREATE INDEX idx_preview_servers_status ON preview_servers(status);
 -- Workspace actions history
 CREATE TABLE IF NOT EXISTS workspace_actions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   action VARCHAR(50) NOT NULL,
   payload JSONB,
   source VARCHAR(20) NOT NULL CHECK (source IN ('ai_chat', 'multi_agent', 'manual')),
