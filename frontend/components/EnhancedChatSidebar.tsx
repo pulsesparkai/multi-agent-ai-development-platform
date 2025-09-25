@@ -22,6 +22,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 import { useBackend } from '../hooks/useBackend';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 interface EnhancedChatSidebarProps {
   projectId: string;
@@ -53,11 +54,74 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
   const [autoPreview, setAutoPreview] = useState(true);
   const [sessionId, setSessionId] = useState<string>('');
   const [lastResponse, setLastResponse] = useState<EnhancedChatResponse | null>(null);
+  const [reasoning, setReasoning] = useState<Array<{
+    agentName: string;
+    reasoning: string;
+    action: string;
+    timestamp: Date;
+  }>>([]);
+  const [fileUpdates, setFileUpdates] = useState<Array<{
+    filePath: string;
+    operation: string;
+    timestamp: Date;
+  }>>([]);
+  const [buildStatus, setBuildStatus] = useState<string>('');
+  const [previewUrl, setPreviewUrl] = useState<string>('');
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const backend = useBackend();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // WebSocket for real-time updates
+  const { connected: wsConnected, error: wsError } = useWebSocket({
+    projectId,
+    sessionId: sessionId || undefined,
+    onAgentReasoning: (agentName, reasoningText, action) => {
+      setReasoning(prev => [...prev, {
+        agentName,
+        reasoning: reasoningText,
+        action,
+        timestamp: new Date()
+      }]);
+    },
+    onFileUpdate: (filePath, operation) => {
+      setFileUpdates(prev => [...prev, {
+        filePath,
+        operation,
+        timestamp: new Date()
+      }]);
+      
+      // Show notification
+      toast({
+        title: `File ${operation}`,
+        description: filePath,
+        duration: 2000
+      });
+    },
+    onBuildUpdate: (status, buildId, output, error) => {
+      setBuildStatus(status);
+      if (status === 'completed') {
+        toast({
+          title: 'Build completed',
+          description: 'Your project has been built successfully',
+        });
+      } else if (status === 'failed') {
+        toast({
+          title: 'Build failed',
+          description: error || 'Build failed with unknown error',
+          variant: 'destructive'
+        });
+      }
+    },
+    onPreviewReady: (url) => {
+      setPreviewUrl(url);
+      toast({
+        title: 'Preview ready',
+        description: 'Your website is now available for preview',
+      });
+    }
+  });
 
   const { data: apiKeys } = useQuery({
     queryKey: ['apiKeys', provider],
@@ -138,11 +202,6 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
         toast({
           title: 'Preview Ready',
           description: 'Preview server is available',
-          action: (
-            <Button size="sm" onClick={() => window.open(response.previewUrl, '_blank')}>
-              Open
-            </Button>
-          ),
         });
       }
       
@@ -169,6 +228,12 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || enhancedChatMutation.isPending) return;
+
+    // Clear previous reasoning and updates when starting new request
+    setReasoning([]);
+    setFileUpdates([]);
+    setBuildStatus('');
+    setPreviewUrl('');
 
     enhancedChatMutation.mutate({
       message: message.trim(),
@@ -281,32 +346,75 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
           </div>
         </div>
         
-        {/* Last Action Summary */}
-        {lastResponse && (
-          <div className="mt-3 p-2 bg-muted/50 rounded-lg">
-            <div className="text-xs font-medium mb-1">Last Action:</div>
-            <div className="flex flex-wrap gap-1">
-              {lastResponse.filesChanged && lastResponse.filesChanged.length > 0 && (
-                <Badge variant="secondary" className="h-5 text-xs">
-                  <FileText className="h-2 w-2 mr-1" />
-                  {lastResponse.filesChanged.length} files
-                </Badge>
-              )}
-              {lastResponse.buildStarted && (
-                <Badge variant="secondary" className="h-5 text-xs">
-                  <Hammer className="h-2 w-2 mr-1" />
-                  Built
-                </Badge>
-              )}
-              {lastResponse.previewUrl && (
-                <Badge variant="secondary" className="h-5 text-xs">
-                  <Eye className="h-2 w-2 mr-1" />
-                  Preview
-                </Badge>
-              )}
-            </div>
+        {/* Real-time Status */}
+        <div className="mt-3 space-y-2">
+          {/* WebSocket Connection Status */}
+          <div className="flex items-center gap-2 text-xs">
+            <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+            <span className="text-muted-foreground">
+              {wsConnected ? 'Real-time updates active' : 'Offline mode'}
+            </span>
           </div>
-        )}
+
+          {/* Latest Reasoning */}
+          {reasoning.length > 0 && (
+            <div className="p-2 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-xs font-medium text-blue-800 mb-1">AI Status:</div>
+              <div className="text-xs text-blue-700 flex items-center gap-1">
+                <Zap className="h-3 w-3 animate-pulse" />
+                {reasoning[reasoning.length - 1].reasoning}
+              </div>
+            </div>
+          )}
+
+          {/* Build Status */}
+          {buildStatus && (
+            <div className={`p-2 rounded-lg border ${
+              buildStatus === 'completed' ? 'bg-green-50 border-green-200' :
+              buildStatus === 'failed' ? 'bg-red-50 border-red-200' :
+              'bg-yellow-50 border-yellow-200'
+            }`}>
+              <div className="text-xs font-medium mb-1">Build Status:</div>
+              <div className="text-xs flex items-center gap-1">
+                <Hammer className={`h-3 w-3 ${buildStatus === 'started' ? 'animate-spin' : ''}`} />
+                {buildStatus === 'started' && 'Building...'}
+                {buildStatus === 'completed' && 'Build completed'}
+                {buildStatus === 'failed' && 'Build failed'}
+              </div>
+            </div>
+          )}
+
+          {/* Preview URL */}
+          {previewUrl && (
+            <div className="p-2 bg-green-50 rounded-lg border border-green-200">
+              <div className="text-xs font-medium text-green-800 mb-1">Preview Ready:</div>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="h-6 text-xs"
+                onClick={() => window.open(previewUrl, '_blank')}
+              >
+                <Eye className="h-3 w-3 mr-1" />
+                Open Preview
+              </Button>
+            </div>
+          )}
+
+          {/* Recent File Updates */}
+          {fileUpdates.length > 0 && (
+            <div className="p-2 bg-gray-50 rounded-lg border">
+              <div className="text-xs font-medium mb-1">Recent Files:</div>
+              <div className="space-y-1">
+                {fileUpdates.slice(-3).map((update, index) => (
+                  <div key={index} className="text-xs flex items-center gap-1 text-gray-600">
+                    <FileText className="h-3 w-3 text-green-500" />
+                    <span className="font-mono truncate">{update.filePath}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -379,6 +487,34 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
             </div>
           ))}
           
+          {/* Real-time reasoning updates */}
+          {reasoning.length > 0 && enhancedChatMutation.isPending && (
+            <div className="space-y-2">
+              {reasoning.slice(-5).map((item, index) => (
+                <div key={index} className="flex gap-3 justify-start opacity-75">
+                  <div className="flex gap-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100 text-blue-600">
+                      <Zap className="h-3 w-3" />
+                    </div>
+                    <div className="bg-blue-50 text-blue-800 rounded-lg px-3 py-2 mr-2 border border-blue-200">
+                      <div className="text-xs font-medium mb-1">{item.agentName}</div>
+                      <div className="text-xs">{item.reasoning}</div>
+                      <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                        {item.action === 'thinking' && <Clock className="h-3 w-3 animate-pulse" />}
+                        {item.action === 'generating' && <Code className="h-3 w-3 animate-pulse" />}
+                        {item.action === 'applying' && <Hammer className="h-3 w-3 animate-spin" />}
+                        {item.action === 'building' && <Hammer className="h-3 w-3 animate-spin" />}
+                        {item.action === 'completed' && <CheckCircle className="h-3 w-3 text-green-500" />}
+                        {item.action === 'error' && <AlertCircle className="h-3 w-3 text-red-500" />}
+                        {item.action}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {enhancedChatMutation.isPending && (
             <div className="flex gap-3 justify-start">
               <div className="flex gap-2">

@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useBackend } from '../hooks/useBackend';
+import { useWebSocket } from '../hooks/useWebSocket';
+import PreviewPanel from './PreviewPanel';
 import type { File as ProjectFile } from '~backend/files/get';
 
 interface EnhancedCodeEditorProps {
@@ -57,10 +59,31 @@ export default function EnhancedCodeEditor({
   const [fileContent, setFileContent] = useState<string>('');
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<'code' | 'changes' | 'preview'>('code');
+  const [realtimePreviewUrl, setRealtimePreviewUrl] = useState<string>('');
   
   const backend = useBackend();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // WebSocket for real-time updates
+  const { connected: wsConnected } = useWebSocket({
+    projectId,
+    onFileUpdate: (filePath, operation) => {
+      // Refresh file list when files are created/updated
+      queryClient.invalidateQueries({ queryKey: ['files', projectId] });
+      if (selectedFile && filePath.includes(selectedFile)) {
+        queryClient.invalidateQueries({ queryKey: ['file', projectId, selectedFile] });
+      }
+    },
+    onPreviewReady: (url) => {
+      setRealtimePreviewUrl(url);
+      setShowPreview(true);
+      setActiveTab('preview');
+    },
+    onBuildUpdate: (status) => {
+      queryClient.invalidateQueries({ queryKey: ['workspace-status', projectId] });
+    }
+  });
 
   // Queries
   const { data: project } = useQuery({
@@ -449,29 +472,10 @@ export default function EnhancedCodeEditor({
             </TabsContent>
             
             <TabsContent value="preview" className="flex-1 m-0">
-              {previewUrl?.url && workspaceStatus?.previewServer?.status === 'running' ? (
-                <iframe
-                  src={previewUrl.url}
-                  className="w-full h-full border-0"
-                  title="Live Preview"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full bg-muted/30">
-                  <div className="text-center text-muted-foreground">
-                    <Eye className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>No preview server running</p>
-                    <p className="text-sm mt-1">Start the preview server to see your application</p>
-                    <Button 
-                      className="mt-4"
-                      onClick={() => startPreviewMutation.mutate()}
-                      disabled={startPreviewMutation.isPending}
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      Start Preview
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <PreviewPanel 
+                projectId={projectId}
+                previewUrl={realtimePreviewUrl || previewUrl?.url || undefined}
+              />
             </TabsContent>
           </Tabs>
         </div>

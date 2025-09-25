@@ -4,6 +4,7 @@ import db from "../db";
 import { AIActionRequest, AIActionResult, WorkspaceStatus, BuildStatus, PreviewServer } from "./types";
 import { applyFileChanges } from "./filesystem";
 import { startBuild, startPreview } from "./build";
+import { wsManager } from "../realtime/websocket";
 
 // Execute AI-generated actions (from chat or multi-agent)
 export const executeAIAction = api<AIActionRequest, AIActionResult>(
@@ -34,6 +35,11 @@ export const executeAIAction = api<AIActionRequest, AIActionResult>(
               content: file.content
             }));
 
+            // Broadcast file creation updates via WebSocket
+            for (const change of changes) {
+              wsManager.broadcastFileUpdate(req.projectId, 'created', change.filePath, change.content);
+            }
+
             const fileResult = await applyFileChanges({
               projectId: req.projectId,
               changes,
@@ -50,6 +56,9 @@ export const executeAIAction = api<AIActionRequest, AIActionResult>(
           break;
 
         case 'build_project':
+          // Broadcast build started
+          wsManager.broadcastBuildUpdate(req.projectId, 'started', 'building', '');
+          
           const buildStatus = await startBuild({
             projectId: req.projectId,
             command: req.payload.buildCommand,
@@ -64,6 +73,11 @@ export const executeAIAction = api<AIActionRequest, AIActionResult>(
             framework: req.payload.framework as any
           });
           result.previewUrl = previewServer.url;
+          
+          // Broadcast preview ready
+          if (previewServer.url) {
+            wsManager.broadcastPreviewReady(req.projectId, previewServer.url);
+          }
           break;
 
         default:

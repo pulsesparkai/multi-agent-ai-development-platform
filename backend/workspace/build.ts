@@ -301,11 +301,15 @@ async function startPreviewServer(previewId: string, projectDir: string, port: n
 
     const devCommand = devCommands[framework] || 'npm run dev';
 
-    // Start dev server
-    const child = spawn('npm', ['run', 'dev', '--', '--port', port.toString()], {
+    // Start dev server with CORS enabled
+    const child = spawn('npm', ['run', 'dev', '--', '--port', port.toString(), '--host', '0.0.0.0'], {
       cwd: projectDir,
       stdio: 'pipe',
-      env: { ...process.env, PORT: port.toString() }
+      env: { 
+        ...process.env, 
+        PORT: port.toString(),
+        VITE_HOST: '0.0.0.0'
+      }
     });
 
     let hasStarted = false;
