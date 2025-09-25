@@ -31,6 +31,23 @@ export const enhancedChat = api<EnhancedChatRequest, EnhancedChatResponse>(
         throw APIError.unauthenticated("authentication required");
       }
 
+      console.log('Auth data:', { userID: auth.userID, projectId: req.projectId });
+
+      // Ensure user exists in database
+      let user = await db.queryRow`
+        SELECT id FROM users WHERE id = ${auth.userID}
+      `;
+
+      if (!user) {
+        console.log('User not found, creating user record...');
+        // Create user if doesn't exist
+        await db.exec`
+          INSERT INTO users (id, email, name)
+          VALUES (${auth.userID}, ${auth.userID}@clerk.dev, 'User')
+          ON CONFLICT (id) DO NOTHING
+        `;
+      }
+
       // Validate request
       if (!req.projectId || !req.message || !req.provider) {
         throw APIError.invalidArgument("missing required fields: projectId, message, provider");
@@ -57,6 +74,7 @@ export const enhancedChat = api<EnhancedChatRequest, EnhancedChatResponse>(
       }
 
       // Get or create chat session
+      console.log('Getting or creating chat session...');
       let session = await db.queryRow<{ id: string, messages: ChatMessage[] }>`
         SELECT id, messages
         FROM chat_sessions
@@ -69,12 +87,14 @@ export const enhancedChat = api<EnhancedChatRequest, EnhancedChatResponse>(
       let messages: ChatMessage[] = [];
 
       if (!session) {
+        console.log('Creating new chat session...');
         sessionId = uuidv4();
         await db.exec`
           INSERT INTO chat_sessions (id, project_id, user_id, messages)
           VALUES (${sessionId}, ${req.projectId}, ${auth.userID}, '[]'::jsonb)
         `;
       } else {
+        console.log('Using existing session:', session.id);
         sessionId = session.id;
         messages = session.messages || [];
       }
@@ -88,7 +108,12 @@ export const enhancedChat = api<EnhancedChatRequest, EnhancedChatResponse>(
       messages.push(userMessage);
 
       // Broadcast reasoning started
-      wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', 'Analyzing your request and planning implementation...', 'thinking');
+      console.log('Broadcasting reasoning...');
+      try {
+        await wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', 'Analyzing your request and planning implementation...', 'thinking');
+      } catch (wsError) {
+        console.warn('WebSocket broadcast failed:', wsError);
+      }
 
       // Enhanced system prompt for code generation
       const enhancedSystemPrompt = `You are an expert web developer AI assistant. When users ask you to create websites, applications, or code, follow this EXACT response format:
@@ -191,10 +216,17 @@ Current project: ${project.name}`;
       ];
 
       // Broadcast AI thinking
-      wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', 'Generating code and preparing files...', 'generating');
+      console.log('Broadcasting AI thinking...');
+      try {
+        await wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', 'Generating code and preparing files...', 'generating');
+      } catch (wsError) {
+        console.warn('WebSocket broadcast failed:', wsError);
+      }
 
       // Get AI response
+      console.log('Calling AI with provider:', req.provider);
       const aiResponse = await callAI(req.provider, apiKey, enhancedMessages, req.model);
+      console.log('AI response received, length:', aiResponse.length);
       
       const assistantMessage: ChatMessage = {
         role: 'assistant',
@@ -204,6 +236,7 @@ Current project: ${project.name}`;
       messages.push(assistantMessage);
 
       // Update session in database
+      console.log('Updating session in database...');
       await db.exec`
         UPDATE chat_sessions
         SET messages = ${JSON.stringify(messages)}::jsonb, updated_at = NOW()
@@ -219,17 +252,29 @@ Current project: ${project.name}`;
 
       // Parse and apply file operations if auto-apply is enabled
       if (req.autoApply) {
-        wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', 'Parsing code and preparing to apply changes...', 'parsing');
+        console.log('Auto-apply enabled, parsing file operations...');
+        try {
+          await wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', 'Parsing code and preparing to apply changes...', 'parsing');
+        } catch (wsError) {
+          console.warn('WebSocket broadcast failed:', wsError);
+        }
         
         const fileOperations = parseFileOperations(aiResponse);
+        console.log('Found file operations:', fileOperations.length);
         
         if (fileOperations.length > 0) {
           try {
-            wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', `Found ${fileOperations.length} files to create. Applying changes...`, 'applying');
+            try {
+              await wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', `Found ${fileOperations.length} files to create. Applying changes...`, 'applying');
+            } catch (wsError) {
+              console.warn('WebSocket broadcast failed:', wsError);
+            }
             
             // Import workspace manager
+            console.log('Importing workspace manager...');
             const { executeAIAction } = await import('../workspace/manager');
             
+            console.log('Executing AI action...');
             const result = await executeAIAction({
               projectId: req.projectId,
               sessionId,
@@ -245,10 +290,20 @@ Current project: ${project.name}`;
 
             if (result.success) {
               response.filesChanged = result.changes?.map(c => c.filePath) || [];
-              wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', `Successfully created ${response.filesChanged.length} files!`, 'completed');
+              console.log('Files applied successfully:', response.filesChanged);
+              try {
+                await wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', `Successfully created ${response.filesChanged.length} files!`, 'completed');
+              } catch (wsError) {
+                console.warn('WebSocket broadcast failed:', wsError);
+              }
             } else {
+              console.error('Failed to apply files:', result.error);
               response.errors?.push(result.error || 'Failed to apply file changes');
-              wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', `Error applying files: ${result.error}`, 'error');
+              try {
+                await wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', `Error applying files: ${result.error}`, 'error');
+              } catch (wsError) {
+                console.warn('WebSocket broadcast failed:', wsError);
+              }
             }
 
             // Auto-build if requested and files were applied successfully
