@@ -2,7 +2,7 @@
 ALTER TABLE agents 
 ADD COLUMN can_adapt_role BOOLEAN DEFAULT FALSE,
 ADD COLUMN available_roles TEXT[] DEFAULT ARRAY['planner', 'coder', 'tester', 'reviewer', 'coordinator'],
-ADD COLUMN current_role TEXT DEFAULT role,
+ADD COLUMN current_role TEXT DEFAULT 'planner',
 ADD COLUMN persona_id UUID;
 
 -- Create custom personas table
