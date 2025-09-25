@@ -164,7 +164,7 @@ async function callAI(provider: string, apiKey: string, messages: ChatMessage[],
     case 'openai':
       return await callOpenAI(apiKey, messages, model || 'gpt-4');
     case 'anthropic':
-      return await callAnthropic(apiKey, messages, model || 'claude-3-sonnet-20240229');
+      return await callAnthropic(apiKey, messages, model || 'claude-3-5-sonnet-20241022');
     case 'google':
       return await callGoogle(apiKey, messages, model || 'gemini-pro');
     case 'xai':
@@ -209,6 +209,24 @@ async function callOpenAI(apiKey: string, messages: ChatMessage[], model: string
 
 async function callAnthropic(apiKey: string, messages: ChatMessage[], model: string): Promise<string> {
   try {
+    // Extract system message if present
+    const systemMessage = messages.find(m => m.role === 'system')?.content;
+    const userMessages = messages.filter(m => m.role !== 'system');
+
+    const requestBody: any = {
+      model,
+      max_tokens: 4000,
+      messages: userMessages.map(m => ({ 
+        role: m.role, 
+        content: m.content 
+      })),
+    };
+
+    // Add system message if present
+    if (systemMessage) {
+      requestBody.system = systemMessage;
+    }
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -216,14 +234,7 @@ async function callAnthropic(apiKey: string, messages: ChatMessage[], model: str
         'Content-Type': 'application/json',
         'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify({
-        model,
-        max_tokens: 4000,
-        messages: messages.filter(m => m.role !== 'system').map(m => ({ 
-          role: m.role, 
-          content: m.content 
-        })),
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {

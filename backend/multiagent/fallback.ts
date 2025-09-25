@@ -160,7 +160,7 @@ async function storeFallbackResponse(sessionId: string, response: string, provid
 function getDefaultModel(provider: string): string {
   const defaults = {
     openai: 'gpt-4',
-    anthropic: 'claude-3-sonnet-20240229',
+    anthropic: 'claude-3-5-sonnet-20241022',
     google: 'gemini-pro',
     xai: 'grok-beta'
   };
