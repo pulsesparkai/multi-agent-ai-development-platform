@@ -262,15 +262,15 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
   const hasApiKey = !!apiKeys;
 
   return (
-    <div className="w-96 border-l border-border bg-card flex flex-col h-full">
+    <div className="w-96 border-l border-border bg-card flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-border">
+      <div className="p-4 border-b border-border flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-primary" />
-            <h3 className="font-medium">Enhanced AI Chat</h3>
+          <div className="flex items-center gap-2 min-w-0">
+            <Bot className="h-5 w-5 text-primary flex-shrink-0" />
+            <h3 className="font-medium truncate">Enhanced AI Chat</h3>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0">
             {onSwitchToMultiAgent && (
               <Button
                 size="sm"
@@ -360,9 +360,9 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
           {reasoning.length > 0 && (
             <div className="p-2 bg-blue-50 rounded-lg border border-blue-200">
               <div className="text-xs font-medium text-blue-800 mb-1">AI Status:</div>
-              <div className="text-xs text-blue-700 flex items-center gap-1">
-                <Zap className="h-3 w-3 animate-pulse" />
-                {reasoning[reasoning.length - 1].reasoning}
+              <div className="text-xs text-blue-700 flex items-start gap-1">
+                <Zap className="h-3 w-3 animate-pulse flex-shrink-0 mt-0.5" />
+                <span className="break-words overflow-wrap-anywhere">{reasoning[reasoning.length - 1].reasoning}</span>
               </div>
             </div>
           )}
@@ -406,9 +406,9 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
               <div className="text-xs font-medium mb-1">Recent Files:</div>
               <div className="space-y-1">
                 {fileUpdates.slice(-3).map((update, index) => (
-                  <div key={index} className="text-xs flex items-center gap-1 text-gray-600">
-                    <FileText className="h-3 w-3 text-green-500" />
-                    <span className="font-mono truncate">{update.filePath}</span>
+                  <div key={index} className="text-xs flex items-center gap-1 text-gray-600 min-w-0">
+                    <FileText className="h-3 w-3 text-green-500 flex-shrink-0" />
+                    <span className="font-mono truncate flex-1">{update.filePath}</span>
                   </div>
                 ))}
               </div>
@@ -418,7 +418,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <ScrollArea className="flex-1 p-4 overflow-x-hidden" ref={scrollRef}>
         <div className="space-y-4">
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
@@ -444,7 +444,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
                 msg.role === 'user' ? 'justify-end' : 'justify-start'
               )}>
                 <div className={cn(
-                  "flex gap-2 max-w-[85%]",
+                  "flex gap-2 max-w-[85%] min-w-0",
                   msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'
                 )}>
                   <div className={cn(
@@ -460,12 +460,12 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
                     )}
                   </div>
                   <div className={cn(
-                    "rounded-lg px-3 py-2 prose prose-sm max-w-none",
+                    "rounded-lg px-3 py-2 prose prose-sm max-w-none overflow-hidden",
                     msg.role === 'user'
                       ? 'bg-primary text-primary-foreground ml-2'
                       : 'bg-muted text-foreground mr-2'
                   )}>
-                    <div className="whitespace-pre-wrap break-words">
+                    <div className="whitespace-pre-wrap break-words overflow-wrap-anywhere">
                       {msg.content}
                     </div>
                     
@@ -496,17 +496,17 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
                     <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 bg-blue-100 text-blue-600">
                       <Zap className="h-3 w-3" />
                     </div>
-                    <div className="bg-blue-50 text-blue-800 rounded-lg px-3 py-2 mr-2 border border-blue-200">
-                      <div className="text-xs font-medium mb-1">{item.agentName}</div>
-                      <div className="text-xs">{item.reasoning}</div>
+                    <div className="bg-blue-50 text-blue-800 rounded-lg px-3 py-2 mr-2 border border-blue-200 min-w-0 flex-1">
+                      <div className="text-xs font-medium mb-1 truncate">{item.agentName}</div>
+                      <div className="text-xs break-words overflow-wrap-anywhere">{item.reasoning}</div>
                       <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                        {item.action === 'thinking' && <Clock className="h-3 w-3 animate-pulse" />}
-                        {item.action === 'generating' && <Code className="h-3 w-3 animate-pulse" />}
-                        {item.action === 'applying' && <Hammer className="h-3 w-3 animate-spin" />}
-                        {item.action === 'building' && <Hammer className="h-3 w-3 animate-spin" />}
-                        {item.action === 'completed' && <CheckCircle className="h-3 w-3 text-green-500" />}
-                        {item.action === 'error' && <AlertCircle className="h-3 w-3 text-red-500" />}
-                        {item.action}
+                        {item.action === 'thinking' && <Clock className="h-3 w-3 animate-pulse flex-shrink-0" />}
+                        {item.action === 'generating' && <Code className="h-3 w-3 animate-pulse flex-shrink-0" />}
+                        {item.action === 'applying' && <Hammer className="h-3 w-3 animate-spin flex-shrink-0" />}
+                        {item.action === 'building' && <Hammer className="h-3 w-3 animate-spin flex-shrink-0" />}
+                        {item.action === 'completed' && <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />}
+                        {item.action === 'error' && <AlertCircle className="h-3 w-3 text-red-500 flex-shrink-0" />}
+                        <span className="truncate">{item.action}</span>
                       </div>
                     </div>
                   </div>
@@ -535,7 +535,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
       </ScrollArea>
 
       {/* Input */}
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border flex-shrink-0">
         {!hasApiKey ? (
           <div className="text-center py-4">
             <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
