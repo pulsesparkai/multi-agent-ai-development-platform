@@ -5,6 +5,7 @@ import {
   Play, Hammer, Eye, CheckCircle, AlertCircle, Clock,
   Zap, Wrench
 } from 'lucide-react';
+import MessageRenderer from './MessageRenderer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -465,9 +466,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
                       ? 'bg-primary text-primary-foreground ml-2'
                       : 'bg-muted text-foreground mr-2'
                   )}>
-                    <div className="whitespace-pre-wrap break-words overflow-wrap-anywhere">
-                      {msg.content}
-                    </div>
+                    <MessageRenderer content={msg.content} role={msg.role} />
                     
                     {msg.role === 'assistant' && (
                       <div className="flex justify-end mt-2 pt-2 border-t border-border/50">
