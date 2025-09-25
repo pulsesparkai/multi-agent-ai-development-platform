@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Send, X, Bot, User, Users, Settings } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Send, X, Bot, User, Users, Settings, Code, FileText, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -33,6 +33,7 @@ export default function ChatSidebar({ projectId, onClose, onSwitchToMultiAgent }
   const scrollRef = useRef<HTMLDivElement>(null);
   const backend = useBackend();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: apiKeys } = useQuery({
     queryKey: ['apiKeys'],
@@ -158,6 +159,80 @@ export default function ChatSidebar({ projectId, onClose, onSwitchToMultiAgent }
     }).format(new Date(date));
   };
 
+  // Function to parse code blocks from AI response
+  const parseCodeBlocks = (content: string) => {
+    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
+    const blocks = [];
+    let match;
+    
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      const language = match[1] || 'text';
+      const code = match[2].trim();
+      
+      // Try to detect filename from content or context
+      let filename = '';
+      if (language === 'html') filename = 'index.html';
+      else if (language === 'css') filename = 'styles.css';
+      else if (language === 'javascript' || language === 'js') filename = 'script.js';
+      else if (language === 'jsx') filename = 'App.jsx';
+      else if (language === 'tsx') filename = 'App.tsx';
+      else if (language === 'typescript' || language === 'ts') filename = 'App.ts';
+      else filename = `file.${language}`;
+      
+      blocks.push({
+        language,
+        code,
+        filename,
+        raw: match[0]
+      });
+    }
+    
+    return blocks;
+  };
+
+  // Mutation to create files
+  const createFileMutation = useMutation({
+    mutationFn: (data: { filename: string; content: string; language?: string }) =>
+      backend.files.create({
+        projectId,
+        name: data.filename,
+        path: data.filename,
+        content: data.content,
+        language: data.language
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files', projectId] });
+      toast({
+        title: 'File created',
+        description: 'File has been created successfully',
+      });
+    },
+    onError: (error) => {
+      console.error('Failed to create file:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create file. Please try again.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleCreateFile = (block: { filename: string; code: string; language: string }) => {
+    createFileMutation.mutate({
+      filename: block.filename,
+      content: block.code,
+      language: block.language
+    });
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({
+      title: 'Copied',
+      description: 'Code copied to clipboard',
+    });
+  };
+
   return (
     <div className="w-96 border-l border-border bg-card flex flex-col">
       {/* Header */}
@@ -265,6 +340,46 @@ export default function ChatSidebar({ projectId, onClose, onSwitchToMultiAgent }
                 )}
               >
                 <div className="whitespace-pre-wrap">{msg.content}</div>
+                
+                {/* Code blocks with action buttons */}
+                {msg.role === 'assistant' && (() => {
+                  const codeBlocks = parseCodeBlocks(msg.content);
+                  return codeBlocks.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {codeBlocks.map((block, blockIndex) => (
+                        <div key={blockIndex} className="border border-border rounded p-2 bg-card">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-mono text-muted-foreground">
+                              {block.filename}
+                            </span>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => handleCopyCode(block.code)}
+                              >
+                                <Copy className="h-3 w-3 mr-1" />
+                                Copy
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => handleCreateFile(block)}
+                                disabled={createFileMutation.isPending}
+                              >
+                                <FileText className="h-3 w-3 mr-1" />
+                                Create File
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+                
                 <div
                   className={cn(
                     "text-xs mt-1 opacity-70",
