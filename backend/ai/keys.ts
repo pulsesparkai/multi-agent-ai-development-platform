@@ -61,26 +61,47 @@ export const listKeys = api<void, ListAPIKeysResponse>(
   }
 );
 
+// Helper function to get encryption key with fallback
+function getEncryptionKey(): string {
+  try {
+    return encryptionKey();
+  } catch (error) {
+    // Fallback for development - use a default key
+    console.warn('EncryptionKey secret not configured, using development fallback');
+    return 'dev-fallback-key-32-chars-long!!!';
+  }
+}
+
 // Helper function to encrypt API keys
 function encryptApiKey(key: string): string {
-  const iv = crypto.randomBytes(16);
-  const keyBuffer = crypto.scryptSync(encryptionKey(), 'salt', 32);
-  const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
-  let encrypted = cipher.update(key, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
+  try {
+    const iv = crypto.randomBytes(16);
+    const keyBuffer = crypto.scryptSync(getEncryptionKey(), 'salt', 32);
+    const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+    let encrypted = cipher.update(key, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+  } catch (error) {
+    console.error('Encryption failed:', error);
+    throw error;
+  }
 }
 
 // Helper function to decrypt API keys
 export function decryptApiKey(encryptedKey: string): string {
-  const parts = encryptedKey.split(':');
-  const iv = Buffer.from(parts[0], 'hex');
-  const encryptedData = parts[1];
-  const keyBuffer = crypto.scryptSync(encryptionKey(), 'salt', 32);
-  const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
-  let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
+  try {
+    const parts = encryptedKey.split(':');
+    const iv = Buffer.from(parts[0], 'hex');
+    const encryptedData = parts[1];
+    const keyBuffer = crypto.scryptSync(getEncryptionKey(), 'salt', 32);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
+    let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (error) {
+    console.error('Decryption failed:', error);
+    throw error;
+  }
 }
 
 // Internal function to get decrypted API key for a user and provider
