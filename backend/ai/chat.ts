@@ -163,7 +163,7 @@ export const getSession = api<GetChatParams, ChatSession>(
 );
 
 // Helper function to call different AI providers
-async function callAI(provider: string, apiKey: string, messages: ChatMessage[], model?: string): Promise<string> {
+export async function callAI(provider: string, apiKey: string, messages: ChatMessage[], model?: string): Promise<string> {
   switch (provider) {
     case 'openai':
       return await callOpenAI(apiKey, messages, model || 'gpt-4');

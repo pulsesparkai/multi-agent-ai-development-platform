@@ -3,7 +3,7 @@ import { getAuthData } from "~encore/auth";
 import db from "../db";
 import { getUserApiKey } from "./keys";
 import { v4 as uuidv4 } from "uuid";
-import { ChatMessage, ChatRequest, ChatResponse } from "./chat";
+import { ChatMessage, ChatRequest, ChatResponse, callAI } from "./chat";
 import { wsManager } from "../realtime/websocket";
 
 export interface EnhancedChatRequest extends ChatRequest {
@@ -24,6 +24,8 @@ export const enhancedChat = api<EnhancedChatRequest, EnhancedChatResponse>(
   { auth: true, expose: true, method: "POST", path: "/ai/enhanced-chat" },
   async (req) => {
     try {
+      console.log('Enhanced chat request received:', { projectId: req.projectId, provider: req.provider, autoApply: req.autoApply });
+      
       const auth = getAuthData();
       if (!auth) {
         throw APIError.unauthenticated("authentication required");
@@ -45,8 +47,12 @@ export const enhancedChat = api<EnhancedChatRequest, EnhancedChatResponse>(
       }
 
       // Get user's API key for the provider
+      console.log('Getting API key for provider:', req.provider);
       const apiKey = await getUserApiKey(auth.userID, req.provider);
+      console.log('Retrieved API key:', { hasKey: !!apiKey, provider: req.provider });
+      
       if (!apiKey) {
+        console.error('No API key found:', { userID: auth.userID, provider: req.provider });
         throw APIError.invalidArgument(`no API key found for provider: ${req.provider}`);
       }
 
@@ -378,130 +384,4 @@ function parseFileOperations(response: string): { operation: string; path: strin
   }
   
   return operations;
-}
-
-// AI calling function (simplified version from chat.ts)
-async function callAI(provider: string, apiKey: string, messages: ChatMessage[], model?: string): Promise<string> {
-  switch (provider) {
-    case 'openai':
-      return await callOpenAI(apiKey, messages, model || 'gpt-4');
-    case 'anthropic':
-      return await callAnthropic(apiKey, messages, model || 'claude-3-5-sonnet-20241022');
-    case 'google':
-      return await callGoogle(apiKey, messages, model || 'gemini-pro');
-    case 'xai':
-      return await callXAI(apiKey, messages, model || 'grok-beta');
-    default:
-      throw APIError.invalidArgument(`unsupported provider: ${provider}`);
-  }
-}
-
-// AI provider implementations (reused from chat.ts)
-async function callOpenAI(apiKey: string, messages: ChatMessage[], model: string): Promise<string> {
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-        max_tokens: 4000,
-      }),
-    });
-
-    if (!response.ok) {
-      throw APIError.internal(`OpenAI API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json() as { choices: Array<{ message: { content: string } }> };
-    return data.choices[0]?.message?.content || 'No response from AI';
-  } catch (error) {
-    throw error instanceof APIError ? error : APIError.internal('Failed to call OpenAI API');
-  }
-}
-
-async function callAnthropic(apiKey: string, messages: ChatMessage[], model: string): Promise<string> {
-  try {
-    const systemMessage = messages.find(m => m.role === 'system')?.content;
-    const userMessages = messages.filter(m => m.role !== 'system');
-
-    const requestBody: any = {
-      model,
-      max_tokens: 4000,
-      messages: userMessages.map(m => ({ 
-        role: m.role, 
-        content: m.content 
-      })),
-    };
-
-    if (systemMessage) {
-      requestBody.system = systemMessage;
-    }
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      throw APIError.internal(`Anthropic API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json() as { content: Array<{ text: string }> };
-    return data.content[0]?.text || 'No response from AI';
-  } catch (error) {
-    throw error instanceof APIError ? error : APIError.internal('Failed to call Anthropic API');
-  }
-}
-
-async function callGoogle(apiKey: string, messages: ChatMessage[], model: string): Promise<string> {
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: messages.map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      })),
-    }),
-  });
-
-  if (!response.ok) {
-    throw APIError.internal(`Google AI API error: ${response.statusText}`);
-  }
-
-  const data = await response.json() as { candidates: Array<{ content: { parts: Array<{ text: string }> } }> };
-  return data.candidates[0]?.content?.parts[0]?.text || 'No response from AI';
-}
-
-async function callXAI(apiKey: string, messages: ChatMessage[], model: string): Promise<string> {
-  const response = await fetch('https://api.x.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
-      max_tokens: 4000,
-    }),
-  });
-
-  if (!response.ok) {
-    throw APIError.internal(`xAI API error: ${response.statusText}`);
-  }
-
-  const data = await response.json() as { choices: Array<{ message: { content: string } }> };
-  return data.choices[0]?.message?.content || 'No response from AI';
 }
