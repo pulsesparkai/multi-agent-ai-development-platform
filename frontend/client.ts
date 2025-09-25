@@ -1160,9 +1160,17 @@ export namespace templates {
  * Import the endpoint handlers to derive the types for the client.
  */
 import {
+    executeCode as api_tools_execution_executeCode,
+    getProjectFiles as api_tools_execution_getProjectFiles
+} from "~backend/tools/execution";
+import {
     executeTool as api_tools_registry_executeTool,
     listTools as api_tools_registry_listTools
 } from "~backend/tools/registry";
+import {
+    generateWebsite as api_tools_simple_generateWebsite,
+    getGenerationStatus as api_tools_simple_getGenerationStatus
+} from "~backend/tools/simple";
 
 export namespace tools {
 
@@ -1171,14 +1179,54 @@ export namespace tools {
 
         constructor(baseClient: BaseClient) {
             this.baseClient = baseClient
+            this.executeCode = this.executeCode.bind(this)
             this.executeTool = this.executeTool.bind(this)
+            this.generateWebsite = this.generateWebsite.bind(this)
+            this.getGenerationStatus = this.getGenerationStatus.bind(this)
+            this.getProjectFiles = this.getProjectFiles.bind(this)
             this.listTools = this.listTools.bind(this)
+        }
+
+        /**
+         * Execute code generation tools
+         */
+        public async executeCode(params: RequestType<typeof api_tools_execution_executeCode>): Promise<ResponseType<typeof api_tools_execution_executeCode>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/tools/execute-code`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_tools_execution_executeCode>
         }
 
         public async executeTool(params: RequestType<typeof api_tools_registry_executeTool>): Promise<ResponseType<typeof api_tools_registry_executeTool>> {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/tools/execute`, {method: "POST", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_tools_registry_executeTool>
+        }
+
+        /**
+         * Single-API website generation (like bolt.new, lovable.dev)
+         */
+        public async generateWebsite(params: RequestType<typeof api_tools_simple_generateWebsite>): Promise<ResponseType<typeof api_tools_simple_generateWebsite>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/simple/generate`, {method: "POST", body: JSON.stringify(params)})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_tools_simple_generateWebsite>
+        }
+
+        /**
+         * Get generation status
+         */
+        public async getGenerationStatus(params: { sessionId: string }): Promise<ResponseType<typeof api_tools_simple_getGenerationStatus>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/simple/status/${encodeURIComponent(params.sessionId)}`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_tools_simple_getGenerationStatus>
+        }
+
+        /**
+         * Get project files for a session
+         */
+        public async getProjectFiles(params: { sessionId: string }): Promise<ResponseType<typeof api_tools_execution_getProjectFiles>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/tools/files/${encodeURIComponent(params.sessionId)}`, {method: "GET", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_tools_execution_getProjectFiles>
         }
 
         public async listTools(): Promise<ResponseType<typeof api_tools_registry_listTools>> {

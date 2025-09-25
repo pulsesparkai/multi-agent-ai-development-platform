@@ -345,25 +345,63 @@ async function executeAgent(agent: Agent, input: string, userId: string, session
       };
     }
 
+    // Enhanced system prompt with tool capabilities
+    const enhancedSystemPrompt = `${agent.systemPrompt}
+
+You have access to code execution tools. When you need to create files, build projects, or generate previews, you should specify the exact actions needed in your response using this format:
+
+<TOOL_ACTION>
+{
+  "action": "create_file",
+  "payload": {
+    "filePath": "src/App.tsx",
+    "content": "// React component code here"
+  }
+}
+</TOOL_ACTION>
+
+Available actions:
+- create_file: Create/write a file
+- run_command: Execute shell commands
+- build_project: Build the project with npm
+- create_preview: Start preview server
+
+For website generation requests, you MUST create actual files and build working projects.`;
+
     // Prepare messages for AI call
     const messages = [
-      { role: 'system', content: agent.systemPrompt },
-      { role: 'user', content: `Current input from previous agent or user:\n\n${input}\n\nPlease process this according to your role as ${agent.role}. Iteration: ${iteration}` }
+      { role: 'system', content: enhancedSystemPrompt },
+      { role: 'user', content: `Current input from previous agent or user:\n\n${input}\n\nPlease process this according to your role as ${agent.role}. Iteration: ${iteration}\n\nIf this involves creating a website or application, use the tool actions to create actual files and build the project.` }
     ];
 
     // Call AI API
     const response = await callAI(agent.provider, apiKey, messages, agent.model);
     
+    // Parse and execute tool actions
+    const executionResults = await executeToolActions(response, sessionId);
+    
     // Estimate tokens and cost (simplified)
-    const inputTokens = Math.ceil(input.length / 4); // Rough token estimate
+    const inputTokens = Math.ceil(input.length / 4);
     const outputTokens = Math.ceil(response.length / 4);
     const totalTokens = inputTokens + outputTokens;
     const estimatedCost = estimateAPICost(agent.provider, totalTokens);
 
+    // Combine AI response with tool execution results
+    let finalOutput = response;
+    if (executionResults.length > 0) {
+      finalOutput += "\n\n--- Tool Execution Results ---\n";
+      executionResults.forEach(result => {
+        finalOutput += `\n${result.action}: ${result.success ? 'SUCCESS' : 'FAILED'}\n`;
+        if (result.output) finalOutput += `Output: ${result.output}\n`;
+        if (result.error) finalOutput += `Error: ${result.error}\n`;
+        if (result.previewUrl) finalOutput += `Preview URL: ${result.previewUrl}\n`;
+      });
+    }
+
     return {
       success: true,
-      output: response,
-      reasoning: `Processed by ${agent.name} (${agent.role})`,
+      output: finalOutput,
+      reasoning: `Processed by ${agent.name} (${agent.role}) with ${executionResults.length} tool actions`,
       cost: estimatedCost,
       tokens: totalTokens
     };
@@ -577,4 +615,42 @@ async function callXAI(apiKey: string, messages: any[], model: string): Promise<
 
   const data = await response.json() as { choices: Array<{ message: { content: string } }> };
   return data.choices[0]?.message?.content || 'No response from AI';
+}
+
+// Execute tool actions from AI response
+async function executeToolActions(aiResponse: string, sessionId: string) {
+  const results: any[] = [];
+  
+  // Extract tool actions from AI response
+  const toolActionRegex = /<TOOL_ACTION>\s*({[^}]+})\s*<\/TOOL_ACTION>/g;
+  let match;
+  
+  while ((match = toolActionRegex.exec(aiResponse)) !== null) {
+    try {
+      const actionData = JSON.parse(match[1]);
+      
+      // Import execution module dynamically to avoid circular dependency
+      const { executeCode } = await import('../tools/execution');
+      
+      const result = await executeCode({
+        sessionId,
+        action: actionData.action,
+        payload: actionData.payload
+      });
+      
+      results.push({
+        action: actionData.action,
+        ...result
+      });
+      
+    } catch (error) {
+      results.push({
+        action: 'parse_error',
+        success: false,
+        error: `Failed to parse or execute tool action: ${error}`
+      });
+    }
+  }
+  
+  return results;
 }

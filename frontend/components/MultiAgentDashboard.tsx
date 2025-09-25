@@ -15,7 +15,11 @@ import {
   Clock,
   Plus,
   User,
-  Shuffle
+  Shuffle,
+  FileText,
+  ExternalLink,
+  Monitor,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,6 +49,11 @@ interface SessionMessage {
   messageType: string;
   timestamp: Date;
   cost?: number;
+}
+
+interface ProjectFile {
+  path: string;
+  content: string;
 }
 
 interface SessionResponse {
@@ -98,6 +107,14 @@ export default function MultiAgentDashboard({ projectId, onClose }: MultiAgentDa
     queryKey: ['multiagent-budget', selectedTeam],
     queryFn: () => selectedTeam ? backend.multiagent.getBudget({ teamId: selectedTeam }) : null,
     enabled: !!selectedTeam,
+  });
+
+  // Query for project files (when session is active)
+  const { data: projectFiles } = useQuery({
+    queryKey: ['project-files', activeSession],
+    queryFn: () => activeSession ? backend.tools.getProjectFiles({ sessionId: activeSession }) : null,
+    enabled: !!activeSession,
+    refetchInterval: 3000, // Refresh every 3 seconds to see new files
   });
 
   // Mutations
@@ -195,6 +212,52 @@ export default function MultiAgentDashboard({ projectId, onClose }: MultiAgentDa
     return colors[role as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
 
+  // Helper function to render message content with preview URLs
+  const renderMessageContent = (content: string) => {
+    if (typeof content !== 'string') {
+      return JSON.stringify(content, null, 2);
+    }
+
+    // Extract preview URLs from content
+    const previewUrlRegex = /Preview URL: (https?:\/\/[^\s]+)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = previewUrlRegex.exec(content)) !== null) {
+      // Add text before the URL
+      if (match.index > lastIndex) {
+        parts.push(content.slice(lastIndex, match.index));
+      }
+      
+      // Add the URL as a clickable link
+      parts.push(
+        <div key={match.index} className="flex items-center gap-2 my-2 p-2 bg-green-50 border border-green-200 rounded">
+          <Monitor className="h-4 w-4 text-green-600" />
+          <span className="text-sm font-medium text-green-800">Live Preview:</span>
+          <a 
+            href={match[1]} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+          >
+            {match[1]}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      );
+      
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining content
+    if (lastIndex < content.length) {
+      parts.push(content.slice(lastIndex));
+    }
+
+    return parts.length > 1 ? <div>{parts}</div> : content;
+  };
+
   return (
     <div className="w-96 border-l border-border bg-card flex flex-col h-full">
       {/* Header */}
@@ -210,9 +273,10 @@ export default function MultiAgentDashboard({ projectId, onClose }: MultiAgentDa
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="dashboard" className="h-full flex flex-col">
-          <TabsList className="grid w-full grid-cols-5 mx-4 mt-4">
+          <TabsList className="grid w-full grid-cols-6 mx-4 mt-4">
             <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
             <TabsTrigger value="sessions">Sessions</TabsTrigger>
+            <TabsTrigger value="files">Files</TabsTrigger>
             <TabsTrigger value="teams">Teams</TabsTrigger>
             <TabsTrigger value="roles">Roles</TabsTrigger>
             <TabsTrigger value="personas">Personas</TabsTrigger>
@@ -382,7 +446,7 @@ export default function MultiAgentDashboard({ projectId, onClose }: MultiAgentDa
                             {new Date(message.timestamp).toLocaleTimeString()}
                           </div>
                           <div className="whitespace-pre-wrap break-words">
-                            {typeof message.content === 'string' ? message.content : JSON.stringify(message.content, null, 2)}
+                            {renderMessageContent(message.content)}
                           </div>
                         </CardContent>
                       </Card>
@@ -396,6 +460,53 @@ export default function MultiAgentDashboard({ projectId, onClose }: MultiAgentDa
                   <Bot className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>No sessions yet</p>
                   <p className="text-sm">Start a new session to see logs here</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="files" className="flex-1 overflow-hidden px-4 pb-4">
+            <div className="space-y-4 h-full">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium">Generated Files</h3>
+                {projectFiles && (
+                  <Badge variant="outline">
+                    {projectFiles.files.length} files
+                  </Badge>
+                )}
+              </div>
+
+              {projectFiles ? (
+                <ScrollArea className="flex-1">
+                  <div className="space-y-3">
+                    {projectFiles.files.map((file, index) => (
+                      <Card key={index} className="text-sm">
+                        <CardContent className="p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FileText className="h-4 w-4 text-blue-500" />
+                            <span className="font-mono font-medium">{file.path}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground mb-2">
+                            {file.content.split('\n').length} lines
+                          </div>
+                          <details className="text-xs">
+                            <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
+                              View content
+                            </summary>
+                            <pre className="mt-2 p-2 bg-gray-50 rounded border overflow-x-auto whitespace-pre-wrap">
+                              {file.content}
+                            </pre>
+                          </details>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No files generated yet</p>
+                  <p className="text-sm">Files will appear here when agents create them</p>
                 </div>
               )}
             </div>

@@ -179,11 +179,71 @@ export const deleteAgent = api<{ agentId: string }, { success: boolean }>(
 // Helper function to get default system prompts based on role
 function getDefaultSystemPrompt(role: string): string {
   const prompts = {
-    planner: "You are a strategic planner agent responsible for breaking down user requests into actionable tasks. Analyze the requirements, identify dependencies, and create a structured plan with clear steps.",
-    coder: "You are a code generation agent specialized in writing clean, efficient, and well-documented code. Follow best practices and implement proper error handling.",
-    tester: "You are a testing and debugging agent responsible for identifying issues, writing tests, and ensuring code quality. Review code for bugs and provide detailed feedback.",
-    reviewer: "You are a code review agent focused on ensuring code quality, maintainability, and adherence to best practices. Provide constructive feedback and approve implementations.",
-    coordinator: "You are a coordination agent responsible for managing the workflow between other agents. Make decisions about iteration continuation and synthesize outputs."
+    planner: `You are a strategic planner agent responsible for breaking down user requests into actionable website/application tasks. When a user requests a website or app:
+
+1. Analyze the requirements and identify what files need to be created
+2. Plan the folder structure (src/, components/, styles/, etc.)
+3. Identify the tech stack (React, HTML/CSS, etc.)
+4. Create a step-by-step implementation plan
+
+Output your plan in clear steps that the coder agent can follow.`,
+
+    coder: `You are a code generation agent specialized in creating complete, working websites and applications. You MUST use the tool actions to create actual files.
+
+For every file you need to create, use this format:
+
+<TOOL_ACTION>
+{
+  "action": "create_file",
+  "payload": {
+    "filePath": "src/App.tsx",
+    "content": "// Your complete file content here"
+  }
+}
+</TOOL_ACTION>
+
+Key responsibilities:
+- Create package.json with proper dependencies
+- Generate HTML, CSS, JavaScript/TypeScript files
+- Use modern frameworks like React, Vue, or vanilla JS
+- Create responsive, functional websites
+- Include proper styling and interactivity
+- Always create complete, working implementations
+
+After creating all files, build the project:
+
+<TOOL_ACTION>
+{
+  "action": "build_project",
+  "payload": {
+    "projectName": "user-website"
+  }
+}
+</TOOL_ACTION>`,
+
+    tester: `You are a testing agent that ensures the generated website works correctly. Your responsibilities:
+
+1. Review the generated files for syntax errors
+2. Check if all dependencies are properly configured
+3. Test the build process
+4. Start a preview server to verify the website works
+
+To start a preview, use:
+
+<TOOL_ACTION>
+{
+  "action": "create_preview",
+  "payload": {
+    "framework": "react"
+  }
+}
+</TOOL_ACTION>
+
+Report any issues found and suggest fixes.`,
+
+    reviewer: "You are a code review agent focused on ensuring the generated website meets quality standards. Review the implementation for best practices, accessibility, and user experience. Provide constructive feedback.",
+
+    coordinator: "You are a coordination agent responsible for managing the website generation workflow. Ensure all agents complete their tasks and the final result is a working website with a live preview URL."
   };
 
   return prompts[role as keyof typeof prompts] || "You are an AI agent helping with software development tasks.";
