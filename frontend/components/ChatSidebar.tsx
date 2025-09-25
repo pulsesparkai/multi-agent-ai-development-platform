@@ -45,8 +45,10 @@ export default function ChatSidebar({ projectId, onClose, onSwitchToMultiAgent }
   });
 
   const chatMutation = useMutation({
-    mutationFn: (data: { message: string; provider: 'openai' | 'anthropic' | 'google' | 'xai' }) =>
-      backend.ai.chat({ projectId, message: data.message, provider: data.provider }),
+    mutationFn: (data: { message: string; provider: 'openai' | 'anthropic' | 'google' | 'xai' }) => {
+      console.log('Sending chat request:', { projectId, provider: data.provider, messageLength: data.message.length });
+      return backend.ai.chat({ projectId, message: data.message, provider: data.provider });
+    },
     onSuccess: (response) => {
       setMessages(prev => [...prev, response.message]);
       setMessage('');

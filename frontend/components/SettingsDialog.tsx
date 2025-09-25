@@ -22,6 +22,20 @@ interface SettingsDialogProps {
 }
 
 export default function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+
+  const testKeysQuery = useMutation({
+    mutationFn: () => backend.ai.debugAPIKeys(),
+    onSuccess: (data) => {
+      console.log('Debug API Keys Result:', data);
+      setDebugInfo(data);
+    },
+    onError: (error) => {
+      console.error('Debug failed:', error);
+      setDebugInfo({ error: error.message });
+    },
+  });
+
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const backend = useBackend();
   const { toast } = useToast();
@@ -168,6 +182,21 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
                 Your API keys are encrypted and stored securely. They are only used to make
                 requests to the respective AI providers on your behalf.
               </p>
+              <div className="mt-4">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => testKeysQuery.mutate()}
+                  disabled={testKeysQuery.isPending}
+                >
+                  Debug API Keys
+                </Button>
+                {debugInfo && (
+                  <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto max-h-40">
+                    {JSON.stringify(debugInfo, null, 2)}
+                  </pre>
+                )}
+              </div>
             </div>
           </TabsContent>
         </Tabs>
