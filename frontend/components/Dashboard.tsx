@@ -11,7 +11,8 @@ import {
   Wrench,
   WifiOff,
   History,
-  HelpCircle
+  HelpCircle,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useBackend } from '../hooks/useBackend';
@@ -19,6 +20,7 @@ import ProjectList from './ProjectList';
 import CodeEditor from './CodeEditor';
 import ChatSidebar from './ChatSidebar';
 import MultiAgentDashboard from './MultiAgentDashboard';
+import SimpleGenerator from './SimpleGenerator';
 import SettingsDialog from './SettingsDialog';
 import CreateProjectDialog from './CreateProjectDialog';
 import DeploymentDialog from './DeploymentDialog';
@@ -35,6 +37,7 @@ export default function Dashboard() {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showChat, setShowChat] = useState(true);
   const [showMultiAgent, setShowMultiAgent] = useState(false);
+  const [showSimpleGenerator, setShowSimpleGenerator] = useState(false);
   const [showVersionControl, setShowVersionControl] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -58,7 +61,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Code className="h-6 w-6 text-primary" />
-              <h1 className="font-semibold text-lg">Multi-Agent AI Platform</h1>
+              <h1 className="font-semibold text-lg">AI Dev Platform</h1>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -79,61 +82,73 @@ export default function Dashboard() {
           </div>
           
           {/* Quick Actions */}
-          <div className="grid grid-cols-2 gap-2">
-            {selectedProject && (
-              <>
-                <DeploymentDialog 
-                  projectId={selectedProject} 
-                  projectName={projects?.projects.find(p => p.id === selectedProject)?.name || "Project"}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowVersionControl(true)}
-                  className="gap-2"
-                >
-                  <GitBranch className="h-4 w-4" />
-                  Git
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowTools(true)}
-                  className="gap-2"
-                >
-                  <Wrench className="h-4 w-4" />
-                  Tools
-                </Button>
-                <OfflineModeDialog 
-                  projectId={selectedProject}
-                  projectName={projects?.projects.find(p => p.id === selectedProject)?.name || "Project"}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowHistory(true)}
-                  className="gap-2"
-                >
-                  <History className="h-4 w-4" />
-                  History
-                </Button>
-                <HelpDialog />
-              </>
-            )}
-            {!selectedProject && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowTools(true)}
-                  className="gap-2"
-                >
-                  <Wrench className="h-4 w-4" />
-                  Tools
-                </Button>
-                <HelpDialog />
-              </>
-            )}
+          <div className="space-y-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setShowSimpleGenerator(true)}
+              className="w-full gap-2"
+            >
+              <Zap className="h-4 w-4" />
+              AI Website Builder
+            </Button>
+            
+            <div className="grid grid-cols-2 gap-2">
+              {selectedProject && (
+                <>
+                  <DeploymentDialog 
+                    projectId={selectedProject} 
+                    projectName={projects?.projects.find(p => p.id === selectedProject)?.name || "Project"}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowVersionControl(true)}
+                    className="gap-2"
+                  >
+                    <GitBranch className="h-4 w-4" />
+                    Git
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTools(true)}
+                    className="gap-2"
+                  >
+                    <Wrench className="h-4 w-4" />
+                    Tools
+                  </Button>
+                  <OfflineModeDialog 
+                    projectId={selectedProject}
+                    projectName={projects?.projects.find(p => p.id === selectedProject)?.name || "Project"}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowHistory(true)}
+                    className="gap-2"
+                  >
+                    <History className="h-4 w-4" />
+                    History
+                  </Button>
+                  <HelpDialog />
+                </>
+              )}
+              {!selectedProject && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowTools(true)}
+                    className="gap-2"
+                  >
+                    <Wrench className="h-4 w-4" />
+                    Tools
+                  </Button>
+                  <HelpDialog />
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -190,8 +205,15 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Simple Generator */}
+        {showSimpleGenerator && (
+          <SimpleGenerator
+            onClose={() => setShowSimpleGenerator(false)}
+          />
+        )}
+
         {/* Multi-Agent Dashboard */}
-        {selectedProject && showMultiAgent && (
+        {selectedProject && showMultiAgent && !showSimpleGenerator && (
           <MultiAgentDashboard
             projectId={selectedProject}
             onClose={() => setShowMultiAgent(false)}
@@ -199,7 +221,7 @@ export default function Dashboard() {
         )}
 
         {/* Chat Sidebar */}
-        {selectedProject && showChat && !showMultiAgent && (
+        {selectedProject && showChat && !showMultiAgent && !showSimpleGenerator && (
           <ChatSidebar
             projectId={selectedProject}
             onClose={() => setShowChat(false)}
