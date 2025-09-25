@@ -107,17 +107,24 @@ export function decryptApiKey(encryptedKey: string): string {
 // Internal function to get decrypted API key for a user and provider
 export async function getUserApiKey(userId: string, provider: string): Promise<string | null> {
   try {
+    console.log('Looking for API key:', { userId, provider });
+    
     const result = await db.queryRow<{ encrypted_key: string }>`
       SELECT encrypted_key
       FROM api_keys
       WHERE user_id = ${userId} AND provider = ${provider}
     `;
 
+    console.log('Database query result:', { hasResult: !!result, provider });
+
     if (!result) {
+      console.log('No API key found for user and provider');
       return null;
     }
 
-    return decryptApiKey(result.encrypted_key);
+    const decryptedKey = decryptApiKey(result.encrypted_key);
+    console.log('Successfully decrypted API key for provider:', provider);
+    return decryptedKey;
   } catch (error) {
     console.error('Failed to get user API key:', {
       error: error instanceof Error ? error.message : 'Unknown error',

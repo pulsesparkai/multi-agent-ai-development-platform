@@ -60,8 +60,12 @@ export const chat = api<ChatRequest, ChatResponse>(
       }
 
       // Get user's API key for the provider
+      console.log('Chat request - auth data:', { userID: auth.userID, provider: req.provider });
       const apiKey = await getUserApiKey(auth.userID, req.provider);
+      console.log('Retrieved API key:', { hasKey: !!apiKey, provider: req.provider });
+      
       if (!apiKey) {
+        console.error('No API key found:', { userID: auth.userID, provider: req.provider });
         throw APIError.invalidArgument(`no API key found for provider: ${req.provider}`);
       }
 
