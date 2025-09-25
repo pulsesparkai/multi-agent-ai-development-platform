@@ -2,13 +2,12 @@
 ALTER TABLE agents 
 ADD COLUMN can_adapt_role BOOLEAN DEFAULT FALSE,
 ADD COLUMN available_roles TEXT[] DEFAULT ARRAY['planner', 'coder', 'tester', 'reviewer', 'coordinator'],
-ADD COLUMN current_role TEXT DEFAULT 'planner',
-ADD COLUMN persona_id UUID;
+ADD COLUMN persona_id TEXT;
 
 -- Create custom personas table
 CREATE TABLE custom_personas (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
   system_prompt TEXT NOT NULL,
@@ -22,13 +21,13 @@ CREATE TABLE custom_personas (
 
 -- Create role assignment rules table
 CREATE TABLE role_assignment_rules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  team_id UUID NOT NULL REFERENCES agent_teams(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id TEXT NOT NULL REFERENCES agent_teams(id) ON DELETE CASCADE,
   project_type TEXT,
-  trigger TEXT NOT NULL CHECK (trigger IN ('task_completion', 'error_threshold', 'complexity_increase', 'manual', 'time_based')),
+  trigger_type TEXT NOT NULL CHECK (trigger_type IN ('task_completion', 'error_threshold', 'complexity_increase', 'manual', 'time_based')),
   from_role TEXT NOT NULL,
   to_role TEXT NOT NULL,
-  condition TEXT NOT NULL,
+  condition_text TEXT NOT NULL,
   priority INTEGER DEFAULT 0,
   is_enabled BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -37,8 +36,8 @@ CREATE TABLE role_assignment_rules (
 
 -- Create project requirements table
 CREATE TABLE project_requirements (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   complexity TEXT CHECK (complexity IN ('low', 'medium', 'high')) DEFAULT 'medium',
   domains TEXT[] DEFAULT ARRAY[]::TEXT[],
   tech_stack TEXT[] DEFAULT ARRAY[]::TEXT[],
@@ -50,12 +49,12 @@ CREATE TABLE project_requirements (
 
 -- Create role assignment history table for tracking dynamic role changes
 CREATE TABLE role_assignment_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-  session_id UUID,
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  session_id TEXT,
   from_role TEXT NOT NULL,
   to_role TEXT NOT NULL,
-  trigger TEXT NOT NULL,
+  trigger_type TEXT NOT NULL,
   trigger_context JSONB,
   assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
