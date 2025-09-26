@@ -278,21 +278,34 @@ export async function getUserApiKey(userId: string, provider: string): Promise<s
   try {
     console.log('Looking for API key:', { userId, provider });
     
-    const result = await db.queryRow<{ encrypted_key: string }>`
-      SELECT encrypted_key
+    const result = await db.queryRow<{ 
+      encrypted_key: string;
+      is_active?: boolean;
+    }>`
+      SELECT encrypted_key, is_active
       FROM api_keys
       WHERE user_id = ${userId} AND provider = ${provider}
     `;
 
-    console.log('Database query result:', { hasResult: !!result, provider });
+    console.log('Database query result:', { 
+      hasResult: !!result, 
+      provider,
+      isActive: result?.is_active
+    });
 
     if (!result) {
       console.log('No API key found for user and provider');
       return null;
     }
 
+    // Check if the API key is marked as inactive/invalid
+    if (result.is_active === false) {
+      console.log('API key exists but is marked as inactive/invalid');
+      return null;  // Don't return invalid keys!
+    }
+
     const decryptedKey = decryptApiKey(result.encrypted_key);
-    console.log('Successfully decrypted API key for provider:', provider);
+    console.log('Successfully decrypted ACTIVE API key for provider:', provider);
     return decryptedKey;
   } catch (error) {
     console.error('Failed to get user API key:', {
