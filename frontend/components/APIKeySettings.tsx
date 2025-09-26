@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Key, Save, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Key, Save, Trash2, Eye, EyeOff, Check, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -151,18 +151,36 @@ export default function APIKeySettings({ onClose, projectId }: APIKeySettingsPro
                   </Button>
                 </div>
 
-                <div className="text-xs text-muted-foreground">
-                  {provider === 'anthropic' && (
-                    <>Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">console.anthropic.com</a></>
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {provider === 'anthropic' && (
+                      <>Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">console.anthropic.com</a></>
+                    )}
+                    {provider === 'openai' && (
+                      <>Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">platform.openai.com</a></>
+                    )}
+                    {provider === 'google' && (
+                      <>Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google AI Studio</a></>
+                    )}
+                    {provider === 'xai' && (
+                      <>Get your API key from <a href="https://console.x.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">console.x.ai</a></>
+                    )}
+                  </div>
+                  
+                  {/* Show validation error if any */}
+                  {existingKey?.lastError && (
+                    <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                      <AlertCircle className="h-3 w-3 inline mr-1" />
+                      {existingKey.lastError}
+                    </div>
                   )}
-                  {provider === 'openai' && (
-                    <>Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">platform.openai.com</a></>
-                  )}
-                  {provider === 'google' && (
-                    <>Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google AI Studio</a></>
-                  )}
-                  {provider === 'xai' && (
-                    <>Get your API key from <a href="https://console.x.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">console.x.ai</a></>
+                  
+                  {/* Show validation success info */}
+                  {existingKey?.isActive && existingKey?.validatedAt && (
+                    <div className="text-xs text-green-600 bg-green-50 p-2 rounded border border-green-200">
+                      <Check className="h-3 w-3 inline mr-1" />
+                      Validated on {new Date(existingKey.validatedAt).toLocaleDateString()}
+                    </div>
                   )}
                 </div>
                 

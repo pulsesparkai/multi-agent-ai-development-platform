@@ -1,7 +1,7 @@
 import { api } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import db from "../db";
-import { getUserApiKey } from "./keys";
+import { getUserApiKey, decryptApiKey } from "./keys";
 
 export interface DebugResponse {
   user: {
@@ -13,6 +13,10 @@ export interface DebugResponse {
     hasKey: boolean;
     keyPreview?: string;
     lastUpdated?: Date;
+    isActive?: boolean;
+    validatedAt?: Date;
+    lastError?: string;
+    error?: string;
   }[];
   database: {
     connected: boolean;
@@ -58,23 +62,44 @@ export const debug = api<void, DebugResponse>(
     }
 
     // Check API keys
-    const apiKeys: { provider: string; hasKey: boolean; keyPreview?: string; lastUpdated?: Date }[] = [];
+    const apiKeys: { provider: string; hasKey: boolean; keyPreview?: string; lastUpdated?: Date; isActive?: boolean; validatedAt?: Date; lastError?: string; error?: string }[] = [];
     const providers = ['anthropic', 'openai', 'google', 'xai'];
     
     for (const provider of providers) {
       try {
-        const key = await getUserApiKey(auth.userID, provider);
-        apiKeys.push({
-          provider,
-          hasKey: !!key,
-          keyPreview: key ? `${key.substring(0, 8)}...${key.substring(key.length - 4)}` : undefined,
-        });
+        const keyInfo = await db.queryRow<{ 
+          encrypted_key: string; 
+          is_active: boolean;
+          validated_at: Date;
+          last_error: string;
+        }>`
+          SELECT encrypted_key, is_active, validated_at, last_error
+          FROM api_keys
+          WHERE user_id = ${auth.userID} AND provider = ${provider}
+        `;
+        
+        if (keyInfo) {
+          const key = decryptApiKey(keyInfo.encrypted_key);
+          apiKeys.push({
+            provider,
+            hasKey: true,
+            keyPreview: `${key.substring(0, 8)}...${key.substring(key.length - 4)}`,
+            isActive: keyInfo.is_active,
+            validatedAt: keyInfo.validated_at,
+            lastError: keyInfo.last_error
+          });
+        } else {
+          apiKeys.push({
+            provider,
+            hasKey: false
+          });
+        }
       } catch (error) {
         apiKeys.push({
           provider,
-          hasKey: false
+          hasKey: false,
+          error: error instanceof Error ? error.message : 'Unknown'
         });
-        errors.push(`Failed to check ${provider} API key: ${error instanceof Error ? error.message : 'Unknown'}`);
       }
     }
 
