@@ -233,16 +233,20 @@ export const listKeys = api<void, ListAPIKeysResponse>(
 // Helper function to get encryption key with fallback
 function getEncryptionKey(): string {
   try {
-    return encryptionKey();
+    const key = encryptionKey();
+    if (!key || key.length < 32) {
+      throw new Error('EncryptionKey secret is too short or empty');
+    }
+    return key;
   } catch (error) {
     // Fallback for development - use a default key
-    console.warn('EncryptionKey secret not configured, using development fallback');
+    console.warn('EncryptionKey secret not configured or invalid, using development fallback. Error:', error instanceof Error ? error.message : 'Unknown');
     return 'dev-fallback-key-32-chars-long!!!';
   }
 }
 
 // Helper function to encrypt API keys
-function encryptApiKey(key: string): string {
+export function encryptApiKey(key: string): string {
   try {
     const iv = crypto.randomBytes(16);
     const keyBuffer = crypto.scryptSync(getEncryptionKey(), 'salt', 32);

@@ -1011,6 +1011,7 @@ export namespace multiagent {
  * Import the endpoint handlers to derive the types for the client.
  */
 import { create as api_projects_create_create } from "~backend/projects/create";
+import { deleteProject as api_projects_delete_deleteProject } from "~backend/projects/delete";
 import { get as api_projects_get_get } from "~backend/projects/get";
 import { list as api_projects_list_list } from "~backend/projects/list";
 
@@ -1022,6 +1023,7 @@ export namespace projects {
         constructor(baseClient: BaseClient) {
             this.baseClient = baseClient
             this.create = this.create.bind(this)
+            this.deleteProject = this.deleteProject.bind(this)
             this.get = this.get.bind(this)
             this.list = this.list.bind(this)
         }
@@ -1033,6 +1035,15 @@ export namespace projects {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/projects`, {method: "POST", body: JSON.stringify(params)})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_projects_create_create>
+        }
+
+        /**
+         * Deletes a project and all its associated data
+         */
+        public async deleteProject(params: { id: string }): Promise<ResponseType<typeof api_projects_delete_deleteProject>> {
+            // Now make the actual call to the API
+            const resp = await this.baseClient.callTypedAPI(`/projects/${encodeURIComponent(params.id)}`, {method: "DELETE", body: undefined})
+            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_projects_delete_deleteProject>
         }
 
         /**
