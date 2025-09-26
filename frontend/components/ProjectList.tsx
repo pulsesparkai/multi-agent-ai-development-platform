@@ -1,15 +1,17 @@
 import React from 'react';
-import { FileCode, Calendar } from 'lucide-react';
+import { FileCode, Calendar, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 import type { Project } from '~backend/projects/list';
 
 interface ProjectListProps {
   projects: Project[];
   selectedProject: string | null;
   onSelectProject: (projectId: string) => void;
+  onDeleteProject?: (projectId: string) => void;
 }
 
-export default function ProjectList({ projects, selectedProject, onSelectProject }: ProjectListProps) {
+export default function ProjectList({ projects, selectedProject, onSelectProject, onDeleteProject }: ProjectListProps) {
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
@@ -47,10 +49,9 @@ export default function ProjectList({ projects, selectedProject, onSelectProject
             <div
               key={project.id}
               className={cn(
-                "p-3 rounded-lg cursor-pointer transition-colors hover:bg-muted/50",
+                "p-3 rounded-lg transition-colors hover:bg-muted/50 group",
                 selectedProject === project.id && "bg-muted"
               )}
-              onClick={() => onSelectProject(project.id)}
             >
               <div className="flex items-center gap-2 mb-1">
                 <div
@@ -59,16 +60,42 @@ export default function ProjectList({ projects, selectedProject, onSelectProject
                     getLanguageColor(project.language)
                   )}
                 />
-                <h3 className="font-medium truncate text-sm">{project.name}</h3>
+                <h3 
+                  className="font-medium truncate text-sm cursor-pointer flex-1"
+                  onClick={() => onSelectProject(project.id)}
+                >
+                  {project.name}
+                </h3>
+                
+                {onDeleteProject && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteProject(project.id);
+                    }}
+                    title="Delete project"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
               
               {project.description && (
-                <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                <p 
+                  className="text-xs text-muted-foreground mb-2 line-clamp-2 cursor-pointer"
+                  onClick={() => onSelectProject(project.id)}
+                >
                   {project.description}
                 </p>
               )}
               
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <div 
+                className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer"
+                onClick={() => onSelectProject(project.id)}
+              >
                 <Calendar className="h-3 w-3" />
                 <span>{formatDate(project.updatedAt)}</span>
                 <span className="ml-auto capitalize">{project.language}</span>

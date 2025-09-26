@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserButton } from '@clerk/clerk-react';
 import { 
   Plus, 
@@ -15,6 +15,7 @@ import {
   Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
 import { useBackend } from '../hooks/useBackend';
 import ProjectList from './ProjectList';
 import CodeEditor from './CodeEditor';
@@ -38,6 +39,8 @@ import CursorLikeIDE from './CursorLikeIDE';
 
 export default function Dashboard() {
   const backend = useBackend();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -74,6 +77,38 @@ export default function Dashboard() {
       }
     },
   });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (projectId: string) => {
+      return backend.projects.deleteProject({ id: projectId });
+    },
+    onSuccess: (data, projectId) => {
+      toast({
+        title: 'Project Deleted',
+        description: data.message,
+      });
+      // If deleted project was selected, clear selection
+      if (selectedProject === projectId) {
+        setSelectedProject(null);
+      }
+      // Refresh projects list
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to Delete Project',
+        description: error?.message || 'An error occurred while deleting the project',
+        variant: 'destructive',
+      });
+      console.error('Delete project error:', error);
+    },
+  });
+
+  const handleDeleteProject = (projectId: string) => {
+    if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+      deleteProjectMutation.mutate(projectId);
+    }
+  };
 
   // Show welcome screen for new users with no API keys and no projects
   const shouldShowWelcome = showWelcome || (
@@ -232,6 +267,7 @@ export default function Dashboard() {
             projects={projects?.projects || []}
             selectedProject={selectedProject}
             onSelectProject={setSelectedProject}
+            onDeleteProject={handleDeleteProject}
           />
         </div>
       </div>
