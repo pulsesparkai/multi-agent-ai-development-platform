@@ -7,6 +7,11 @@ export interface DebugResponse {
   user: {
     id: string;
     authenticated: boolean;
+    existsInDB: boolean;
+  };
+  projects: {
+    count: number;
+    list: Array<{ id: string; name: string; language: string }>;
   };
   apiKeys: {
     provider: string;
@@ -34,11 +39,23 @@ export const debug = api<void, DebugResponse>(
     if (!auth) {
       errors.push("No authentication data available");
       return {
-        user: { id: 'unknown', authenticated: false },
+        user: { id: 'unknown', authenticated: false, existsInDB: false },
+        projects: { count: 0, list: [] },
         apiKeys: [],
         database: { connected: false, tablesExist: false },
         errors
       };
+    }
+
+    // Check if user exists in database
+    let userExistsInDB = false;
+    try {
+      const userRecord = await db.queryRow`
+        SELECT id FROM users WHERE id = ${auth.userID}
+      `;
+      userExistsInDB = !!userRecord;
+    } catch (error) {
+      errors.push(`User lookup error: ${error instanceof Error ? error.message : 'Unknown'}`);
     }
 
     // Check database connection
@@ -59,6 +76,22 @@ export const debug = api<void, DebugResponse>(
       tablesExist = tableCheck?.exists || false;
     } catch (error) {
       errors.push(`Database error: ${error instanceof Error ? error.message : 'Unknown'}`);
+    }
+
+    // Get user's projects
+    let projects = { count: 0, list: [] as Array<{ id: string; name: string; language: string }> };
+    try {
+      const userProjects = await db.queryAll<{ id: string; name: string; language: string }>`
+        SELECT id, name, language FROM projects
+        WHERE user_id = ${auth.userID}
+        ORDER BY updated_at DESC
+      `;
+      projects = {
+        count: userProjects.length,
+        list: userProjects
+      };
+    } catch (error) {
+      errors.push(`Projects lookup error: ${error instanceof Error ? error.message : 'Unknown'}`);
     }
 
     // Check API keys
@@ -106,8 +139,10 @@ export const debug = api<void, DebugResponse>(
     return {
       user: {
         id: auth.userID,
-        authenticated: true
+        authenticated: true,
+        existsInDB: userExistsInDB
       },
+      projects,
       apiKeys,
       database: {
         connected: dbConnected,
