@@ -1,7 +1,11 @@
 import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import db from "../db";
-import { v4 as uuidv4 } from "uuid";
+// import { v4 as uuidv4 } from "uuid";
+
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
 
 export interface CreateFileRequest {
   name: string;
@@ -50,7 +54,7 @@ export const create = api<CreateFileRequest & CreateFileParams, File>(
       throw APIError.alreadyExists("file with this path already exists");
     }
 
-    const fileId = uuidv4();
+    const fileId = generateId();
     const content = params.content || '';
 
     await db.exec`

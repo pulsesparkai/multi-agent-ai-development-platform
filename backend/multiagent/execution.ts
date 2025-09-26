@@ -1,7 +1,11 @@
 import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import db from "../db";
-import { v4 as uuidv4 } from "uuid";
+// import { v4 as uuidv4 } from "uuid";
+
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
 import { getUserApiKey } from "../ai/keys";
 import { StartSessionRequest, SessionResponse, Agent, SessionMessage, AgentMessage } from "./types";
 import { checkRateLimit, checkBudgetLimit, logAPIUsage } from "./rate_limiter";
@@ -51,7 +55,7 @@ export const startSession = api<StartSessionRequest, SessionResponse>(
       throw APIError.invalidArgument(budgetCheck.reason || "budget limit would be exceeded");
     }
 
-    const sessionId = uuidv4();
+    const sessionId = generateId();
     
     await db.exec`
       INSERT INTO agent_sessions (id, team_id, project_id, user_id, initial_prompt, max_iterations)

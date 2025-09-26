@@ -46,7 +46,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
   });
 
   const testKeysQuery = useMutation({
-    mutationFn: () => backend.ai.debugAPIKeys(),
+    mutationFn: () => backend.ai.debug(),
     onSuccess: (data) => {
       console.log('Debug API Keys Result:', data);
       setDebugInfo(data);

@@ -2,7 +2,10 @@ import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import db from "../db";
 import { getUserApiKey } from "./keys";
-import { v4 as uuidv4 } from "uuid";
+
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -82,7 +85,7 @@ export const chat = api<ChatRequest, ChatResponse>(
     let messages: ChatMessage[] = [];
 
     if (!session) {
-      sessionId = uuidv4();
+      sessionId = generateId();
       await db.exec`
         INSERT INTO chat_sessions (id, project_id, user_id, messages)
         VALUES (${sessionId}, ${req.projectId}, ${auth.userID}, '[]'::jsonb)

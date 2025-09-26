@@ -2,8 +2,11 @@ import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import { secret } from "encore.dev/config";
 import db from "../db";
-import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
+
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
 
 const encryptionKey = secret("EncryptionKey");
 
@@ -34,7 +37,7 @@ export const setKey = api<SetAPIKeyRequest, { success: boolean }>(
 
     await db.exec`
       INSERT INTO api_keys (id, user_id, provider, encrypted_key)
-      VALUES (${uuidv4()}, ${auth.userID}, ${req.provider}, ${encryptedKey})
+      VALUES (${generateId()}, ${auth.userID}, ${req.provider}, ${encryptedKey})
       ON CONFLICT (user_id, provider) DO UPDATE SET
         encrypted_key = EXCLUDED.encrypted_key,
         updated_at = NOW()

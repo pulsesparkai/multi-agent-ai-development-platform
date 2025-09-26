@@ -1,7 +1,7 @@
 import { api } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import { getUserApiKey } from "../ai/keys";
-import { v4 as uuidv4 } from "uuid";
+// import { v4 as uuidv4 } from "uuid";
 
 export interface SimpleCodeGenRequest {
   prompt: string;

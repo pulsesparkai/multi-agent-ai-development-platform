@@ -3,7 +3,7 @@ import { getAuthData } from "~encore/auth";
 import { promises as fs } from 'fs';
 import { spawn } from 'child_process';
 import path from 'path';
-import { v4 as uuidv4 } from "uuid";
+// import { v4 as uuidv4 } from "uuid";
 
 export interface CodeExecutionRequest {
   sessionId: string;

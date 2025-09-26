@@ -92,21 +92,13 @@ export class RealAIExecutor extends LeapStyleExecutor {
       // Create specific AI prompt for this step
       const stepPrompt = this.createStepPrompt(stepDescription, stepIndex, totalSteps);
       
-      console.log(`Executing AI step ${stepIndex + 1}: ${stepDescription}`);
-      
-      // Check if we have API keys configured before making real AI calls
-      try {
-        const apiKeysResponse = await this.apiClient.ai.listKeys();
-        const hasApiKey = apiKeysResponse.apiKeys.some((key: any) => key.provider === this.provider);
-        
-        if (!hasApiKey) {
-          console.log(`No API key for ${this.provider}, using demo mode for step ${stepIndex + 1}`);
-          return await this.executeDemoStep(stepDescription, stepIndex);
-        }
-      } catch (error) {
-        console.log(`API key check failed, using demo mode for step ${stepIndex + 1}:`, error);
-        return await this.executeDemoStep(stepDescription, stepIndex);
-      }
+      console.log('Executing AI step:', {
+        stepIndex: stepIndex + 1,
+        stepDescription,
+        projectId: this.projectId,
+        provider: this.provider,
+        promptLength: stepPrompt.length
+      });
       
       // Call your enhanced chat API with step-specific instructions
       const response = await this.apiClient.ai.enhancedChat({
@@ -118,106 +110,127 @@ export class RealAIExecutor extends LeapStyleExecutor {
         autoPreview: stepIndex >= 7 // Only preview at the very end
       });
 
+      console.log('AI step response received:', {
+        stepIndex: stepIndex + 1,
+        hasMessage: !!response.message,
+        messageLength: response.message?.content?.length,
+        filesChanged: response.filesChanged?.length || 0,
+        buildStarted: response.buildStarted,
+        hasPreviewUrl: !!response.previewUrl,
+        errors: response.errors?.length || 0
+      });
+
+      // Handle the response properly
+      if (response.filesChanged && response.filesChanged.length > 0) {
+        return {
+          stepIndex,
+          stepDescription,
+          aiResponse: response.message.content,
+          filesChanged: response.filesChanged,
+          buildStarted: response.buildStarted,
+          previewUrl: response.previewUrl,
+          timestamp: new Date()
+        };
+      }
+
+      // If no files changed but response exists, parse for file operations
+      const fileOps = this.parseFileOperations(response.message.content);
+      console.log('Parsed file operations:', { count: fileOps.length, files: fileOps.map(f => f.path) });
+      
+      if (fileOps.length > 0) {
+        console.log('Manually applying file operations...');
+        // Apply files manually if auto-apply failed
+        const result = await this.apiClient.workspace.executeAIAction({
+          projectId: this.projectId,
+          sessionId: response.sessionId,
+          action: 'generate_files',
+          payload: { files: fileOps },
+          source: 'ai_chat'
+        });
+        
+        console.log('Manual file application result:', {
+          success: result.success,
+          changesCount: result.changes?.length || 0,
+          error: result.error
+        });
+        
+        return {
+          stepIndex,
+          stepDescription,
+          aiResponse: response.message.content,
+          filesChanged: result.changes?.map((c: any) => c.filePath) || [],
+          buildStarted: response.buildStarted,
+          previewUrl: response.previewUrl,
+          timestamp: new Date()
+        };
+      }
+
       return {
         stepIndex,
         stepDescription,
         aiResponse: response.message.content,
-        filesChanged: response.filesChanged || [],
+        filesChanged: [],
         buildStarted: response.buildStarted,
         previewUrl: response.previewUrl,
         timestamp: new Date()
       };
 
     } catch (error) {
-      console.error(`AI step ${stepIndex + 1} failed, falling back to demo:`, error);
-      // Fallback to demo mode if AI call fails
-      return await this.executeDemoStep(stepDescription, stepIndex);
+      console.error('AI step execution failed:', {
+        stepIndex: stepIndex + 1,
+        stepDescription,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        errorType: error instanceof Error ? error.constructor.name : typeof error
+      });
+      
+      // Check specific error types and provide better messages
+      if (error instanceof Error) {
+        if (error.message?.includes('API key') || error.message?.includes('unauthenticated')) {
+          throw new Error(`API key issue for ${this.provider}: ${error.message}`);
+        }
+        
+        if (error.message?.includes('internal error')) {
+          throw new Error(`Backend service error: ${error.message}`);
+        }
+        
+        if (error.message?.includes('network') || error.message?.includes('fetch')) {
+          throw new Error(`Network error connecting to backend: ${error.message}`);
+        }
+      }
+      
+      // Don't fall back to demo - throw the actual error so we can debug
+      throw error;
     }
   }
 
-  // Demo mode that shows the step-by-step execution without requiring API keys
-  private async executeDemoStep(stepDescription: string, stepIndex: number): Promise<any> {
-    // Simulate realistic timing for each step
-    const stepTimings = [800, 1200, 1000, 900, 1100, 600, 1500, 700];
-    const timing = stepTimings[stepIndex] || 800;
+  private parseFileOperations(content: string): { path: string; content: string }[] {
+    const operations: { path: string; content: string }[] = [];
     
-    await new Promise(resolve => setTimeout(resolve, timing));
+    // Look for JSON code blocks with file operations
+    const jsonBlockRegex = /```json\s*\n([\s\S]*?)\n```/g;
+    let match;
     
-    // Generate realistic demo results based on step
-    const demoResults: Record<number, any> = {
-      0: {
-        stepIndex,
-        stepDescription,
-        aiResponse: "✅ Analyzed the request to create a React todo app. I'll build a modern, responsive todo application with TypeScript, featuring add/remove functionality, local storage persistence, and clean UI design.",
-        demoMode: true,
-        timestamp: new Date()
-      },
-      1: {
-        stepIndex,
-        stepDescription,
-        aiResponse: "✅ Generated core application files including index.html, package.json, and main App.tsx component with proper TypeScript configuration and modern React setup.",
-        filesChanged: ['index.html', 'package.json', 'src/App.tsx', 'src/main.tsx'],
-        demoMode: true,
-        timestamp: new Date()
-      },
-      2: {
-        stepIndex,
-        stepDescription,
-        aiResponse: "✅ Created component architecture with TodoList, TodoItem, and AddTodo components. Implemented proper TypeScript interfaces and component structure.",
-        filesChanged: ['src/components/TodoList.tsx', 'src/components/TodoItem.tsx', 'src/components/AddTodo.tsx'],
-        demoMode: true,
-        timestamp: new Date()
-      },
-      3: {
-        stepIndex,
-        stepDescription,
-        aiResponse: "✅ Implemented comprehensive styling with Tailwind CSS, responsive design, modern UI components, and smooth animations for better user experience.",
-        filesChanged: ['src/App.css', 'tailwind.config.js', 'src/index.css'],
-        demoMode: true,
-        timestamp: new Date()
-      },
-      4: {
-        stepIndex,
-        stepDescription,
-        aiResponse: "✅ Added full interactivity including add/remove todo functionality, toggle completion, local storage persistence, and keyboard shortcuts for improved UX.",
-        filesChanged: ['src/hooks/useTodos.ts', 'src/utils/storage.ts'],
-        demoMode: true,
-        timestamp: new Date()
-      },
-      5: {
-        stepIndex,
-        stepDescription,
-        aiResponse: "✅ Applied all generated files to the project workspace. File structure is ready for building.",
-        filesApplied: 8,
-        demoMode: true,
-        timestamp: new Date()
-      },
-      6: {
-        stepIndex,
-        stepDescription,
-        aiResponse: "✅ Built and compiled the application successfully. All TypeScript checks passed, optimized bundle generated.",
-        buildStarted: true,
-        buildStatus: 'completed',
-        demoMode: true,
-        timestamp: new Date()
-      },
-      7: {
-        stepIndex,
-        stepDescription,
-        aiResponse: "✅ Preview server started successfully! Your todo app is ready to use.",
-        previewUrl: 'http://localhost:3000',
-        demoMode: true,
-        timestamp: new Date()
+    while ((match = jsonBlockRegex.exec(content)) !== null) {
+      try {
+        const jsonData = JSON.parse(match[1]);
+        
+        if (jsonData.files && Array.isArray(jsonData.files)) {
+          for (const file of jsonData.files) {
+            if (file.path && typeof file.content === 'string') {
+              operations.push({
+                path: file.path,
+                content: file.content
+              });
+            }
+          }
+        }
+      } catch (parseError) {
+        console.error('Failed to parse JSON file operations:', parseError);
       }
-    };
-
-    return demoResults[stepIndex] || {
-      stepIndex,
-      stepDescription,
-      aiResponse: `✅ Demo: ${stepDescription} completed successfully.`,
-      demoMode: true,
-      timestamp: new Date()
-    };
+    }
+    
+    return operations;
   }
 
   private createStepPrompt(stepDescription: string, stepIndex: number, totalSteps: number): string {
@@ -227,7 +240,21 @@ Original user request: "${this.userMessage}"
 This is step ${stepIndex + 1} of ${totalSteps} in a methodical implementation process.
 Current step focus: ${stepDescription}
 
-Please focus ONLY on this specific step. Do not implement the entire solution at once.
+CRITICAL: You MUST generate actual code files using this exact JSON format at the end of your response:
+
+\`\`\`json
+{
+  "files": [
+    {
+      "operation": "create",
+      "path": "src/App.tsx",
+      "content": "import React from 'react';\\n\\nfunction App() {\\n  return <div>Hello World</div>;\\n}\\n\\nexport default App;"
+    }
+  ]
+}
+\`\`\`
+
+Include ALL necessary files for a working project.
 `;
 
     // Step-specific instructions
@@ -236,61 +263,61 @@ Please focus ONLY on this specific step. Do not implement the entire solution at
 For this planning step:
 - Analyze the user's request in detail
 - Plan the overall structure and approach
-- Identify what files and components will be needed
-- Create a mental model of the solution
-- DO NOT generate any code yet, just plan and explain your approach`,
+- Explain your approach but DO NOT generate any code yet
+- This is planning only - code generation comes in later steps`,
 
       1: `${baseContext}
 For this file generation step:
-- Generate the core HTML structure
-- Create basic CSS styling foundation
-- Set up the main JavaScript/TypeScript files
-- Focus on the essential file structure only
-- Include proper package.json and config files`,
+- Generate the core project structure files
+- Create package.json with all necessary dependencies
+- Generate index.html entry point
+- Create main.tsx entry file
+- Include vite.config.ts and other config files
+- Focus ONLY on the essential project setup files`,
 
       2: `${baseContext}
 For this component step:
-- Create reusable components based on the plan
-- Implement component logic and structure
-- Focus on component architecture and modularity
-- Build components that work together`,
+- Create the main App.tsx component
+- Generate component files based on the plan
+- Build reusable components with proper TypeScript interfaces
+- Focus on component architecture and structure`,
 
       3: `${baseContext}
 For this styling step:
-- Implement comprehensive CSS/styling
-- Add responsive design and layout
-- Include visual polish and design elements
-- Make the interface look professional`,
+- Create comprehensive CSS/styling files
+- Add Tailwind configuration if needed
+- Include responsive design and modern UI
+- Generate style files that make the app look professional`,
 
       4: `${baseContext}
 For this functionality step:
-- Add interactive features and behavior
-- Implement business logic and state management
-- Add event handlers and user interactions
+- Add interactive features and business logic
+- Implement state management and event handlers
+- Create utility functions and hooks
 - Make the application fully functional`,
 
       5: `${baseContext}
 For this application step:
-- Apply all generated files to the workspace
-- Ensure file structure is correct
+- Review and ensure all files are properly generated
+- Add any missing configuration or utility files
 - Prepare for building phase`,
 
       6: `${baseContext}
 For this build step:
-- Build and compile the application
-- Resolve any build errors or issues
-- Ensure everything compiles correctly`,
+- Verify all files are in place for building
+- Add any missing build configuration
+- Ensure the project can compile successfully`,
 
       7: `${baseContext}
 For this preview step:
-- Start the preview server
-- Test that everything works
-- Provide final verification`
+- Final verification that everything is ready
+- Add any final touches or missing pieces
+- Ensure the application is ready for preview`
     };
 
     return stepInstructions[stepIndex] || `${baseContext}
 Execute: ${stepDescription}
-Focus only on this specific aspect of the implementation.`;
+Generate the necessary files for this specific step.`;
   }
 
   private generateId(): string {

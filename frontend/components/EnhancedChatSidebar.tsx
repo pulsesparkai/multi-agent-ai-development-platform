@@ -258,15 +258,6 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
       onStepComplete: (step: ExecutionStep, result: any) => {
         console.log(`✅ Step completed: ${step.description}`, result);
         
-        // Show demo mode notification
-        if (result.demoMode) {
-          toast({
-            title: '🎭 Demo Mode',
-            description: 'This is a demo. Configure API keys for real AI functionality.',
-            duration: 3000,
-          });
-        }
-        
         // Update UI based on step results
         if (result.filesChanged?.length > 0) {
           setFileUpdates(prev => [
@@ -289,11 +280,37 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
       },
       onStepError: (step: ExecutionStep, error: string) => {
         console.error(`❌ Step failed: ${step.description}`, error);
-        toast({
-          title: 'Step Failed',
-          description: `${step.description}: ${error}`,
-          variant: 'destructive',
-        });
+        
+        // Show detailed error information
+        if (error.includes('API key')) {
+          toast({
+            title: 'API Key Issue',
+            description: 'Please configure your API key in the settings above.',
+            variant: 'destructive',
+            duration: 8000,
+          });
+        } else if (error.includes('Backend service')) {
+          toast({
+            title: 'Backend Error',
+            description: `Service error: ${error}`,
+            variant: 'destructive',
+            duration: 8000,
+          });
+        } else if (error.includes('Network')) {
+          toast({
+            title: 'Connection Error', 
+            description: 'Failed to connect to backend services.',
+            variant: 'destructive',
+            duration: 8000,
+          });
+        } else {
+          toast({
+            title: 'Step Failed',
+            description: error,
+            variant: 'destructive',
+            duration: 8000,
+          });
+        }
       }
     });
 
@@ -324,29 +341,24 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
       // Execute all steps with delays like I do
       await executor.executeAll(3000); // 3 second delays between steps
       
-      // Check if we were in demo mode
-      const wasDemo = executor.getTodos().some(todo => 
-        todo.result?.demoMode === true
-      );
-      
-      if (wasDemo) {
-        toast({
-          title: '🎭 Demo Complete!',
-          description: 'You just saw how Leap works! Configure API keys above for real AI functionality.',
-          duration: 8000,
-        });
-      } else {
-        toast({
-          title: 'Execution Complete! 🎉',
-          description: 'All steps have been completed successfully',
-        });
-      }
+      toast({
+        title: 'Execution Complete! 🎉',
+        description: 'All steps have been completed successfully',
+      });
     } catch (error) {
       console.error('Execution failed:', error);
+      
+      // Show specific error information
+      let errorMessage = 'Some steps failed during execution';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: 'Execution Failed',
-        description: 'Some steps failed during execution',
+        description: errorMessage,
         variant: 'destructive',
+        duration: 10000,
       });
     } finally {
       setIsExecutingSteps(false);

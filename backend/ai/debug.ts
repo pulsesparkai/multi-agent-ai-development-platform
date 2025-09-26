@@ -1,45 +1,94 @@
 import { api } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
-import { getUserApiKey } from "./keys";
 import db from "../db";
+import { getUserApiKey } from "./keys";
 
-export interface DebugAPIKeyResponse {
-  hasKeys: boolean;
-  providers: string[];
-  canDecrypt: Record<string, boolean>;
-  userId: string;
+export interface DebugResponse {
+  user: {
+    id: string;
+    authenticated: boolean;
+  };
+  apiKeys: {
+    provider: string;
+    hasKey: boolean;
+    keyPreview?: string;
+    lastUpdated?: Date;
+  }[];
+  database: {
+    connected: boolean;
+    tablesExist: boolean;
+  };
+  errors: string[];
 }
 
-// Debug endpoint to check API key status
-export const debugAPIKeys = api<void, DebugAPIKeyResponse>(
-  { auth: true, expose: true, method: "GET", path: "/ai/debug-keys" },
+export const debug = api<void, DebugResponse>(
+  { auth: true, expose: true, method: "GET", path: "/ai/debug" },
   async () => {
-    const auth = getAuthData()!;
+    const errors: string[] = [];
+    const auth = getAuthData();
     
-    // Get all saved keys for this user
-    const savedKeys = await db.queryAll<{ provider: string; encrypted_key: string }>`
-      SELECT provider, encrypted_key
-      FROM api_keys
-      WHERE user_id = ${auth.userID}
-    `;
+    if (!auth) {
+      errors.push("No authentication data available");
+      return {
+        user: { id: 'unknown', authenticated: false },
+        apiKeys: [],
+        database: { connected: false, tablesExist: false },
+        errors
+      };
+    }
 
-    const result: DebugAPIKeyResponse = {
-      hasKeys: savedKeys.length > 0,
-      providers: savedKeys.map(k => k.provider),
-      canDecrypt: {},
-      userId: auth.userID,
-    };
+    // Check database connection
+    let dbConnected = false;
+    let tablesExist = false;
+    
+    try {
+      await db.queryRow`SELECT 1`;
+      dbConnected = true;
+      
+      // Check if api_keys table exists
+      const tableCheck = await db.queryRow`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_name = 'api_keys'
+        ) as exists
+      `;
+      tablesExist = tableCheck?.exists || false;
+    } catch (error) {
+      errors.push(`Database error: ${error instanceof Error ? error.message : 'Unknown'}`);
+    }
 
-    // Test decryption for each key
-    for (const key of savedKeys) {
+    // Check API keys
+    const apiKeys: { provider: string; hasKey: boolean; keyPreview?: string; lastUpdated?: Date }[] = [];
+    const providers = ['anthropic', 'openai', 'google', 'xai'];
+    
+    for (const provider of providers) {
       try {
-        const decryptedKey = await getUserApiKey(auth.userID, key.provider);
-        result.canDecrypt[key.provider] = !!decryptedKey;
+        const key = await getUserApiKey(auth.userID, provider);
+        apiKeys.push({
+          provider,
+          hasKey: !!key,
+          keyPreview: key ? `${key.substring(0, 8)}...${key.substring(key.length - 4)}` : undefined,
+        });
       } catch (error) {
-        result.canDecrypt[key.provider] = false;
+        apiKeys.push({
+          provider,
+          hasKey: false
+        });
+        errors.push(`Failed to check ${provider} API key: ${error instanceof Error ? error.message : 'Unknown'}`);
       }
     }
 
-    return result;
+    return {
+      user: {
+        id: auth.userID,
+        authenticated: true
+      },
+      apiKeys,
+      database: {
+        connected: dbConnected,
+        tablesExist
+      },
+      errors
+    };
   }
 );

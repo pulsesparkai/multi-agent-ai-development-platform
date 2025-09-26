@@ -1,9 +1,12 @@
 import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import db from "../db";
-import { v4 as uuidv4 } from "uuid";
 import { promises as fs } from 'fs';
 import path from 'path';
+
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
 import { FileChange } from "./types";
 
 export interface ApplyFileChangesRequest {
@@ -60,7 +63,7 @@ export const applyFileChanges = api<ApplyFileChangesRequest, ApplyFileChangesRes
 
     for (const change of req.changes) {
       try {
-        const changeId = uuidv4();
+        const changeId = generateId();
         const fullPath = path.join(projectDir, change.filePath);
         
         let previousContent: string | undefined;
@@ -123,7 +126,7 @@ export const applyFileChanges = api<ApplyFileChangesRequest, ApplyFileChangesRes
         } else {
           await db.exec`
             INSERT INTO files (id, project_id, name, path, content, language)
-            VALUES (${uuidv4()}, ${req.projectId}, ${path.basename(change.filePath)}, ${change.filePath}, ${change.content || ''}, ${getLanguageFromPath(change.filePath)})
+            VALUES (${generateId()}, ${req.projectId}, ${path.basename(change.filePath)}, ${change.filePath}, ${change.content || ''}, ${getLanguageFromPath(change.filePath)})
             ON CONFLICT (project_id, path) 
             DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
           `;

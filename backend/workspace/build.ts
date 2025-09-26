@@ -1,11 +1,14 @@
 import { api, APIError } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import db from "../db";
-import { v4 as uuidv4 } from "uuid";
 import { spawn } from 'child_process';
 import path from 'path';
 import { promises as fs } from 'fs';
 import { BuildStatus, PreviewServer } from "./types";
+
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
 
 export interface StartBuildRequest {
   projectId: string;
@@ -35,7 +38,7 @@ export const startBuild = api<StartBuildRequest, BuildStatus>(
       throw APIError.notFound("project not found");
     }
 
-    const buildId = uuidv4();
+    const buildId = generateId();
     const projectDir = getProjectDirectory(req.projectId);
 
     // Initialize build status
@@ -141,7 +144,7 @@ export const startPreview = api<StartPreviewRequest, PreviewServer>(
       return previewServer!;
     }
 
-    const previewId = uuidv4();
+    const previewId = generateId();
     const port = req.port || await findAvailablePort();
     
     // Use production domain for preview URL

@@ -1,5 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
-
 export interface TodoItem {
   id: string;
   content: string;
@@ -42,7 +40,7 @@ export class LeapStyleExecutor {
     const plan = this.parseUserIntent(userMessage);
     
     this.todos = plan.map(step => ({
-      id: uuidv4(),
+      id: Math.random().toString(36).substr(2, 9),
       content: step,
       status: 'pending' as const
     }));
@@ -163,7 +161,7 @@ export class LeapStyleExecutor {
   private createExecutionSteps(plan: string[]): ExecutionStep[] {
     // Convert plan into executable steps with real AI actions
     return plan.map((planItem, index) => ({
-      id: uuidv4(),
+      id: Math.random().toString(36).substr(2, 9),
       name: `Step ${index + 1}`,
       description: planItem,
       action: async () => {

@@ -1,7 +1,10 @@
 import { api } from "encore.dev/api";
 import { getAuthData } from "~encore/auth";
 import db from "../db";
-import { v4 as uuidv4 } from "uuid";
+
+function generateId(): string {
+  return Math.random().toString(36).substr(2, 9);
+}
 
 export interface CreateProjectRequest {
   name: string;
@@ -23,7 +26,7 @@ export const create = api<CreateProjectRequest, Project>(
   { auth: true, expose: true, method: "POST", path: "/projects" },
   async (req) => {
     const auth = getAuthData()!;
-    const projectId = uuidv4();
+    const projectId = generateId();
 
     await db.exec`
       INSERT INTO projects (id, user_id, name, description, language)
@@ -36,7 +39,7 @@ export const create = api<CreateProjectRequest, Project>(
     
     await db.exec`
       INSERT INTO files (id, project_id, name, path, content, language)
-      VALUES (${uuidv4()}, ${projectId}, ${defaultFileName}, ${defaultFileName}, ${defaultContent}, ${req.language})
+      VALUES (${generateId()}, ${projectId}, ${defaultFileName}, ${defaultFileName}, ${defaultContent}, ${req.language})
     `;
 
     const project = await db.queryRow<Project>`
