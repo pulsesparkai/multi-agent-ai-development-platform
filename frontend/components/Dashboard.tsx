@@ -34,6 +34,7 @@ import HelpDialog from './HelpDialog';
 import WelcomeScreen from './WelcomeScreen';
 import DebugInfo from './DebugInfo';
 import LeapLikeDemoPanel from './LeapLikeDemoPanel';
+import CursorLikeIDE from './CursorLikeIDE';
 
 export default function Dashboard() {
   const backend = useBackend();
@@ -48,6 +49,7 @@ export default function Dashboard() {
   const [showHistory, setShowHistory] = useState(false);
   const [useEnhancedMode, setUseEnhancedMode] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [useCursorMode, setUseCursorMode] = useState(true);
   const [showDebug, setShowDebug] = useState(false);
   const [showLeapDemo, setShowLeapDemo] = useState(false);
 
@@ -122,6 +124,17 @@ export default function Dashboard() {
             >
               <Zap className="h-4 w-4" />
               AI Website Builder
+            </Button>
+            
+            {/* Mode Toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setUseCursorMode(!useCursorMode)}
+              className="w-full gap-2"
+            >
+              <Code className="h-4 w-4" />
+              {useCursorMode ? 'Cursor Mode' : 'Legacy Mode'}
             </Button>
             
             <div className="grid grid-cols-2 gap-2">
