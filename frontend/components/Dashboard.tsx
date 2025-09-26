@@ -36,6 +36,7 @@ import WelcomeScreen from './WelcomeScreen';
 import DebugInfo from './DebugInfo';
 import LeapLikeDemoPanel from './LeapLikeDemoPanel';
 import CursorLikeIDE from './CursorLikeIDE';
+import AIDebugTest from './AIDebugTest';
 
 export default function Dashboard() {
   const backend = useBackend();
@@ -52,6 +53,7 @@ export default function Dashboard() {
   const [showHistory, setShowHistory] = useState(false);
   const [useEnhancedMode, setUseEnhancedMode] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showDebugTest, setShowDebugTest] = useState(false);
   const [useCursorMode, setUseCursorMode] = useState(true);
   const [showDebug, setShowDebug] = useState(false);
   const [showLeapDemo, setShowLeapDemo] = useState(false);
@@ -132,6 +134,14 @@ export default function Dashboard() {
               <h1 className="font-semibold text-lg">AI Dev Platform</h1>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowDebugTest(true)}
+                title="Debug AI"
+              >
+                <Zap className="h-4 w-4" />
+              </Button>
               <Button
                 size="sm"
                 variant="ghost"
@@ -417,6 +427,23 @@ export default function Dashboard() {
             </div>
             <div className="overflow-auto">
               <DebugInfo projectId={selectedProject || undefined} />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* AI Debug Test Dialog */}
+      {showDebugTest && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-medium">AI Debug Test</h3>
+              <Button size="sm" variant="ghost" onClick={() => setShowDebugTest(false)}>
+                ×
+              </Button>
+            </div>
+            <div className="overflow-auto">
+              <AIDebugTest />
             </div>
           </div>
         </div>

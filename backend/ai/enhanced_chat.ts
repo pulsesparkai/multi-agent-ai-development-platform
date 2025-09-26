@@ -26,6 +26,16 @@ export interface EnhancedChatResponse extends ChatResponse {
 export const enhancedChat = api<EnhancedChatRequest, EnhancedChatResponse>(
   { auth: true, expose: true, method: "POST", path: "/ai/enhanced-chat" },
   async (req) => {
+    console.log('=== Enhanced Chat Request Start ===');
+    console.log('Request details:', {
+      projectId: req.projectId,
+      provider: req.provider,
+      messageLength: req.message?.length,
+      autoApply: req.autoApply,
+      autoBuild: req.autoBuild,
+      autoPreview: req.autoPreview
+    });
+    
     try {
       console.log('Enhanced chat request received:', { projectId: req.projectId, provider: req.provider, autoApply: req.autoApply });
       
@@ -109,6 +119,12 @@ export const enhancedChat = api<EnhancedChatRequest, EnhancedChatResponse>(
         timestamp: new Date(),
       };
       messages.push(userMessage);
+      
+      // Limit message history to prevent API issues (keep last 10 messages)
+      if (messages.length > 10) {
+        console.log('Trimming message history from', messages.length, 'to 10 messages');
+        messages = messages.slice(-10);
+      }
 
       // Broadcast reasoning started
       console.log('Broadcasting reasoning...');
@@ -157,9 +173,16 @@ Current project: ${project.name}`;
         console.warn('WebSocket broadcast failed:', wsError);
       }
 
-      // Get AI response
+      // Get AI response with timeout
       console.log('Calling AI with provider:', req.provider);
-      const aiResponse = await callAI(req.provider, apiKey, enhancedMessages, req.model);
+      console.log('Message count in history:', enhancedMessages.length);
+      
+      const aiResponse = await Promise.race([
+        callAI(req.provider, apiKey, enhancedMessages, req.model),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('AI call timeout after 60 seconds')), 60000)
+        )
+      ]);
       
       console.log('AI response received, length:', aiResponse.length);
       
@@ -320,13 +343,16 @@ Current project: ${project.name}`;
       return response;
 
     } catch (error) {
-      console.error('Enhanced chat API error:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
+      console.error('=== Enhanced Chat Error ===');
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
         userId: getAuthData()?.userID,
         projectId: req?.projectId,
         provider: req?.provider,
+        errorType: error instanceof Error ? error.constructor.name : typeof error
       });
+      console.error('=== End Enhanced Chat Error ===');
       
       if (error instanceof APIError) {
         throw error;
