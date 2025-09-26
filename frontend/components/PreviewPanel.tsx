@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Monitor, ExternalLink, RefreshCw, AlertCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useBackend } from '../hooks/useBackend';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 interface PreviewPanelProps {
   projectId: string;
@@ -17,11 +18,27 @@ export default function PreviewPanel({ projectId, previewUrl: initialPreviewUrl,
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Query for current preview URL
+  // WebSocket connection for real-time updates
+  const { connected } = useWebSocket({
+    projectId,
+    onPreviewReady: (url: string) => {
+      console.log('Preview ready via WebSocket:', url);
+      setCurrentUrl(url);
+      setError(null);
+    },
+    onBuildUpdate: (status: string) => {
+      if (status === 'completed') {
+        // Refetch preview URL when build completes
+        refetch();
+      }
+    }
+  });
+
+  // Query for current preview URL - reduce polling when WebSocket is connected
   const { data: previewData, refetch } = useQuery({
     queryKey: ['preview-url', projectId],
     queryFn: () => backend.workspace.getPreviewUrl({ projectId }),
-    refetchInterval: 2000, // Check every 2 seconds
+    refetchInterval: connected ? 10000 : 2000, // Poll every 10s if WS connected, 2s if not
   });
 
   useEffect(() => {

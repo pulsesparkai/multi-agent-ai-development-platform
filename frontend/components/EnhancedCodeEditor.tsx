@@ -96,22 +96,31 @@ export default function EnhancedCodeEditor({
     queryFn: () => backend.files.list({ projectId }),
   });
 
-  const { data: currentFile } = useQuery({
+  const { data: currentFile, error: fileError } = useQuery({
     queryKey: ['file', projectId, selectedFile],
     queryFn: () => backend.files.get({ projectId, fileId: selectedFile! }),
     enabled: !!selectedFile,
+    retry: (failureCount, error: any) => {
+      // Don't retry on 404 errors
+      if (error?.status === 404 || error?.message?.includes('not found')) {
+        console.warn('File not found, clearing selection:', selectedFile);
+        setSelectedFile(null);
+        return false;
+      }
+      return failureCount < 3;
+    },
   });
 
   const { data: workspaceStatus, refetch: refetchWorkspaceStatus } = useQuery({
     queryKey: ['workspace-status', projectId],
     queryFn: () => backend.workspace.getWorkspaceStatus({ projectId }),
-    refetchInterval: 2000, // Poll every 2 seconds
+    refetchInterval: wsConnected ? 15000 : 2000, // Poll every 15s if WS connected, 2s if not
   });
 
   const { data: previewUrl } = useQuery({
     queryKey: ['preview-url', projectId],
     queryFn: () => backend.workspace.getPreviewUrl({ projectId }),
-    refetchInterval: 5000, // Poll every 5 seconds
+    refetchInterval: wsConnected ? 20000 : 5000, // Poll every 20s if WS connected, 5s if not
   });
 
   // Mutations
@@ -223,6 +232,31 @@ export default function EnhancedCodeEditor({
     };
     return languageMap[ext || ''] || 'plaintext';
   };
+
+  // Update file content when currentFile changes
+  useEffect(() => {
+    if (currentFile) {
+      setFileContent(currentFile.content);
+    } else {
+      setFileContent('');
+    }
+  }, [currentFile]);
+
+  // Handle file errors (404s, etc.)
+  useEffect(() => {
+    if (fileError && selectedFile) {
+      console.error('Error loading file:', fileError);
+      if (fileError.message?.includes('not found') || fileError.status === 404) {
+        console.warn('File not found, clearing selection:', selectedFile);
+        setSelectedFile(null);
+        toast({
+          title: 'File not found',
+          description: 'The selected file could not be found. It may have been deleted.',
+          variant: 'destructive',
+        });
+      }
+    }
+  }, [fileError, selectedFile, toast]);
 
   const selectedFileData = files?.files.find(f => f.id === selectedFile);
 

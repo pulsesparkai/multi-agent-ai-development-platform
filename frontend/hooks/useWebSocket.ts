@@ -57,8 +57,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         throw new Error('No authentication token available');
       }
       
-      // Connect to the streaming endpoint
-      const stream = await backend.realtime.ws({
+      // Create auth-enabled client
+      const authClient = backend.with({
+        auth: { authorization: `Bearer ${token}` }
+      });
+
+      // Connect to the streaming endpoint with authentication
+      const stream = await authClient.realtime.ws({
         projectId: options.projectId,
         sessionId: options.sessionId
       });
@@ -131,21 +136,25 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           }
         }
       } catch (streamError) {
-        console.log('WebSocket stream ended:', streamError);
+        console.error('WebSocket stream error:', streamError);
+        setConnected(false);
+        
         if (shouldReconnectRef.current && reconnectAttempts < maxReconnectAttempts && isSignedIn) {
           const baseDelay = 1000;
           const maxDelay = 30000;
           const jitter = Math.random() * 1000;
           const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempts) + jitter, maxDelay);
           
-          console.log(`Reconnecting in ${Math.round(delay)}ms... (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+          console.log(`WebSocket disconnected. Reconnecting in ${Math.round(delay)}ms... (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+          setError(`Reconnecting... (${reconnectAttempts + 1}/${maxReconnectAttempts})`);
           
           reconnectTimeoutRef.current = setTimeout(() => {
             setReconnectAttempts(prev => prev + 1);
             connect();
           }, delay);
         } else {
-          setError('Connection lost');
+          setError('Connection lost - please refresh to retry');
+          console.error('WebSocket connection failed permanently after', maxReconnectAttempts, 'attempts');
         }
       } finally {
         setConnected(false);
@@ -154,8 +163,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     } catch (error) {
       console.error('Failed to connect WebSocket stream:', error);
-      setError('Failed to connect to real-time updates');
       setConnected(false);
+      
+      // More specific error messages based on the error type
+      let errorMessage = 'Failed to connect to real-time updates';
+      if (error instanceof Error) {
+        if (error.message.includes('authentication') || error.message.includes('401')) {
+          errorMessage = 'Authentication failed - please sign in again';
+        } else if (error.message.includes('network') || error.message.includes('timeout')) {
+          errorMessage = 'Network error - check your connection';
+        } else if (error.message.includes('token')) {
+          errorMessage = 'Authentication token expired - please refresh';
+        }
+      }
+      setError(errorMessage);
       
       // Auto-reconnect on connection failure
       if (shouldReconnectRef.current && reconnectAttempts < maxReconnectAttempts && isSignedIn) {
@@ -170,6 +191,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           setReconnectAttempts(prev => prev + 1);
           connect();
         }, delay);
+      } else {
+        console.error('WebSocket connection failed permanently:', error);
       }
     }
   };

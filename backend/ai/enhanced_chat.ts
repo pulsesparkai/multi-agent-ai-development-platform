@@ -223,9 +223,21 @@ Current project: ${project.name}`;
         console.warn('WebSocket broadcast failed:', wsError);
       }
 
-      // Get AI response
+      // Get AI response with streaming if supported
       console.log('Calling AI with provider:', req.provider);
-      const aiResponse = await callAI(req.provider, apiKey, enhancedMessages, req.model);
+      
+      let aiResponse: string;
+      if (req.provider === 'anthropic') {
+        // Use streaming for Anthropic
+        aiResponse = await callAIStreaming(req.provider, apiKey, enhancedMessages, req.model, 
+          (chunk: string) => {
+            // Broadcast each chunk as reasoning
+            wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', chunk, 'thinking').catch(console.warn);
+          });
+      } else {
+        aiResponse = await callAI(req.provider, apiKey, enhancedMessages, req.model);
+      }
+      
       console.log('AI response received, length:', aiResponse.length);
       
       const assistantMessage: ChatMessage = {
@@ -311,6 +323,9 @@ Current project: ${project.name}`;
               try {
                 wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', 'Starting build process...', 'building');
                 
+                // Add small delay to ensure files are written to disk
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
                 const buildResult = await executeAIAction({
                   projectId: req.projectId,
                   sessionId,
@@ -337,11 +352,14 @@ Current project: ${project.name}`;
               try {
                 wsManager.broadcastAgentReasoning(req.projectId, sessionId, 'AI Assistant', 'Starting preview server...', 'previewing');
                 
+                // Add delay to ensure build is complete before starting preview
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
                 const previewResult = await executeAIAction({
                   projectId: req.projectId,
                   sessionId,
                   action: 'start_preview',
-                  payload: { framework: 'react' },
+                  payload: { framework: 'vite' }, // Default to vite for better compatibility
                   source: 'ai_chat'
                 });
 
@@ -412,7 +430,26 @@ function parseFileOperations(response: string): { operation: string; path: strin
     }
   }
   
-  // Fallback: Look for old FILE_OPERATIONS format
+  // Fallback 1: Look for 📄 markdown format blocks
+  if (operations.length === 0) {
+    const fileBlockRegex = /📄\s+([^\s-]+)(?:\s*-[^`]*)?```(\w+)?\s*\n([\s\S]*?)\n```/g;
+    let fileMatch;
+    
+    while ((fileMatch = fileBlockRegex.exec(response)) !== null) {
+      const path = fileMatch[1];
+      const content = fileMatch[3];
+      
+      if (path && content) {
+        operations.push({
+          operation: 'create',
+          path: path,
+          content: content
+        });
+      }
+    }
+  }
+
+  // Fallback 2: Look for old FILE_OPERATIONS format
   if (operations.length === 0) {
     const operationsRegex = /<FILE_OPERATIONS>\s*([\s\S]*?)\s*<\/FILE_OPERATIONS>/g;
     let legacyMatch;
@@ -437,6 +474,145 @@ function parseFileOperations(response: string): { operation: string; path: strin
       }
     }
   }
+
+  // Fallback 3: Look for any code blocks with file paths in comments
+  if (operations.length === 0) {
+    const genericBlockRegex = /(?:```(\w+)?\s*\n(?:\/\/ |# |\/\* )?([^\n]+)\n([\s\S]*?)\n```)/g;
+    let genericMatch;
+    
+    while ((genericMatch = genericBlockRegex.exec(response)) !== null) {
+      const language = genericMatch[1];
+      const possiblePath = genericMatch[2];
+      const content = genericMatch[3];
+      
+      // Check if the comment looks like a file path
+      if (possiblePath && (possiblePath.includes('.') || possiblePath.includes('/'))) {
+        const cleanPath = possiblePath.replace(/^(\/\/ |# |\/\* |\* )/, '').replace(/\s*\*\/$/, '').trim();
+        
+        if (cleanPath && content) {
+          operations.push({
+            operation: 'create',
+            path: cleanPath,
+            content: content
+          });
+        }
+      }
+    }
+  }
   
   return operations;
+}
+
+// Streaming AI call function for live thinking display
+async function callAIStreaming(
+  provider: string, 
+  apiKey: string, 
+  messages: ChatMessage[], 
+  model?: string,
+  onChunk?: (chunk: string) => void
+): Promise<string> {
+  if (provider === 'anthropic') {
+    return await callAnthropicStreaming(apiKey, messages, model || 'claude-3-5-sonnet-20241022', onChunk);
+  } else {
+    // Fallback to non-streaming for other providers
+    return await callAI(provider, apiKey, messages, model);
+  }
+}
+
+async function callAnthropicStreaming(
+  apiKey: string, 
+  messages: ChatMessage[], 
+  model: string,
+  onChunk?: (chunk: string) => void
+): Promise<string> {
+  try {
+    // Extract system message if present
+    const systemMessage = messages.find(m => m.role === 'system')?.content;
+    const userMessages = messages.filter(m => m.role !== 'system');
+
+    const requestBody: any = {
+      model,
+      max_tokens: 4000,
+      stream: true,
+      messages: userMessages.map(m => ({ 
+        role: m.role, 
+        content: m.content 
+      })),
+    };
+
+    // Add system message if present
+    if (systemMessage) {
+      requestBody.system = systemMessage;
+    }
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Anthropic API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      });
+      throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
+    }
+
+    let fullResponse = '';
+    let buffer = '';
+    
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body reader available');
+    }
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Decode the chunk
+        const chunk = new TextDecoder().decode(value);
+        buffer += chunk;
+
+        // Process complete lines
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'content_block_delta' && data.delta?.text) {
+                const text = data.delta.text;
+                fullResponse += text;
+                
+                // Send chunk for live display
+                if (onChunk) {
+                  onChunk(text);
+                }
+              }
+            } catch (parseError) {
+              // Ignore JSON parse errors for non-JSON lines
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    return fullResponse || 'No response from AI';
+  } catch (error) {
+    console.error('Anthropic streaming call failed:', error);
+    throw error;
+  }
 }
