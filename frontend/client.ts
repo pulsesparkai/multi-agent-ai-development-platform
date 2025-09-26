@@ -48,7 +48,6 @@ export class Client {
     public readonly tools: tools.ServiceClient
     public readonly versioncontrol: versioncontrol.ServiceClient
     public readonly workspace: workspace.ServiceClient
-    public readonly yardsale: yardsale.ServiceClient
     private readonly options: ClientOptions
     private readonly target: string
 
@@ -78,7 +77,6 @@ export class Client {
         this.tools = new tools.ServiceClient(base)
         this.versioncontrol = new versioncontrol.ServiceClient(base)
         this.workspace = new workspace.ServiceClient(base)
-        this.yardsale = new yardsale.ServiceClient(base)
     }
 
     /**
@@ -1527,63 +1525,6 @@ export namespace workspace {
             // Now make the actual call to the API
             const resp = await this.baseClient.callTypedAPI(`/workspace/${encodeURIComponent(params.projectId)}/preview`, {method: "DELETE", body: undefined})
             return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_workspace_build_stopPreview>
-        }
-    }
-}
-
-/**
- * Import the endpoint handlers to derive the types for the client.
- */
-import { create as api_yardsale_create_create } from "~backend/yardsale/create";
-import { get as api_yardsale_get_get } from "~backend/yardsale/get";
-import { list as api_yardsale_list_list } from "~backend/yardsale/list";
-
-export namespace yardsale {
-
-    export class ServiceClient {
-        private baseClient: BaseClient
-
-        constructor(baseClient: BaseClient) {
-            this.baseClient = baseClient
-            this.create = this.create.bind(this)
-            this.get = this.get.bind(this)
-            this.list = this.list.bind(this)
-        }
-
-        /**
-         * Creates a new yard sale listing.
-         */
-        public async create(params: RequestType<typeof api_yardsale_create_create>): Promise<ResponseType<typeof api_yardsale_create_create>> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI(`/yardsales`, {method: "POST", body: JSON.stringify(params)})
-            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_yardsale_create_create>
-        }
-
-        /**
-         * Retrieves a specific yard sale by ID.
-         */
-        public async get(params: { id: number }): Promise<ResponseType<typeof api_yardsale_get_get>> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI(`/yardsales/${encodeURIComponent(params.id)}`, {method: "GET", body: undefined})
-            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_yardsale_get_get>
-        }
-
-        /**
-         * Retrieves yard sale listings with optional filtering.
-         */
-        public async list(params: RequestType<typeof api_yardsale_list_list>): Promise<ResponseType<typeof api_yardsale_list_list>> {
-            // Convert our params into the objects we need for the request
-            const query = makeRecord<string, string | string[]>({
-                limit:    params.limit === undefined ? undefined : String(params.limit),
-                offset:   params.offset === undefined ? undefined : String(params.offset),
-                search:   params.search,
-                upcoming: params.upcoming === undefined ? undefined : String(params.upcoming),
-                zipCode:  params.zipCode,
-            })
-
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callTypedAPI(`/yardsales`, {query, method: "GET", body: undefined})
-            return JSON.parse(await resp.text(), dateReviver) as ResponseType<typeof api_yardsale_list_list>
         }
     }
 }
