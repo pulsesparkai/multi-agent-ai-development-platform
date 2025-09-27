@@ -54,6 +54,7 @@ interface EnhancedChatResponse {
 export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMultiAgent }: EnhancedChatSidebarProps) {
   const [message, setMessage] = useState('');
   const [provider, setProvider] = useState<'openai' | 'anthropic' | 'google' | 'xai'>('anthropic');
+  const [model, setModel] = useState('claude-3-5-sonnet-20241022');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [autoApply, setAutoApply] = useState(config.defaultAutoApply);
   const [autoBuild, setAutoBuild] = useState(config.defaultAutoBuild);
@@ -150,6 +151,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
     mutationFn: (data: { 
       message: string; 
       provider: 'openai' | 'anthropic' | 'google' | 'xai';
+      model?: string;
       autoApply?: boolean;
       autoBuild?: boolean;
       autoPreview?: boolean;
@@ -167,6 +169,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
         projectId,
         message: data.message,
         provider: data.provider,
+        model: data.model,
         autoApply: data.autoApply,
         autoBuild: data.autoBuild,
         autoPreview: data.autoPreview
@@ -250,6 +253,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
     const newExecutor = new RealAIExecutor({
       projectId,
       provider,
+      model,
       apiClient: backend
     }, {
       onTodoUpdate: (todos: TodoItem[]) => {
@@ -431,7 +435,14 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
         <div className="space-y-3">
           <div>
             <Label htmlFor="provider" className="text-xs">AI Provider</Label>
-            <Select value={provider} onValueChange={(value: any) => setProvider(value)}>
+            <Select value={provider} onValueChange={(value: any) => {
+              setProvider(value);
+              // Set default model for each provider
+              if (value === 'anthropic') setModel('claude-3-5-sonnet-20241022');
+              else if (value === 'openai') setModel('gpt-4');
+              else if (value === 'google') setModel('gemini-pro');
+              else if (value === 'xai') setModel('grok-beta');
+            }}>
               <SelectTrigger className="h-8">
                 <SelectValue />
               </SelectTrigger>
@@ -443,6 +454,22 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
               </SelectContent>
             </Select>
           </div>
+          
+          {provider === 'anthropic' && (
+            <div>
+              <Label htmlFor="model" className="text-xs">Model</Label>
+              <Select value={model} onValueChange={setModel}>
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Best for Coding)</SelectItem>
+                  <SelectItem value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Fastest)</SelectItem>
+                  <SelectItem value="claude-3-opus-20240229">Claude 3 Opus (Legacy)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           
           {/* Auto-actions */}
           <div className="space-y-2">

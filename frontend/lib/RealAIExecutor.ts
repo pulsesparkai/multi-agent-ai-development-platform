@@ -3,6 +3,7 @@ import { LeapStyleExecutor, TodoItem, ExecutionStep } from '../lib/LeapStyleExec
 export interface AIStepExecutor {
   projectId: string;
   provider: 'openai' | 'anthropic' | 'google' | 'xai';
+  model?: string;
   apiClient: any; // Your backend client
   onProgress?: (step: string, progress: number) => void;
 }
@@ -10,6 +11,7 @@ export interface AIStepExecutor {
 export class RealAIExecutor extends LeapStyleExecutor {
   private projectId: string;
   private provider: string;
+  private model?: string;
   private apiClient: any;
   private userMessage: string = '';
 
@@ -17,6 +19,7 @@ export class RealAIExecutor extends LeapStyleExecutor {
     super(options);
     this.projectId = config.projectId;
     this.provider = config.provider;
+    this.model = config.model;
     this.apiClient = config.apiClient;
   }
 
@@ -105,6 +108,7 @@ export class RealAIExecutor extends LeapStyleExecutor {
         projectId: this.projectId,
         message: stepPrompt,
         provider: this.provider,
+        model: this.model,
         autoApply: stepIndex >= 5, // Only auto-apply in later steps
         autoBuild: stepIndex >= 6,  // Only build near the end
         autoPreview: stepIndex >= 7 // Only preview at the very end

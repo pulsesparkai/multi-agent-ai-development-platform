@@ -220,7 +220,7 @@ async function callAnthropic(apiKey: string, messages: ChatMessage[], model: str
     const userMessages = messages.filter(m => m.role !== 'system');
 
     const requestBody: any = {
-      model: model || 'claude-3-opus-20240229',  // Use a valid model
+      model: model || 'claude-3-5-sonnet-20241022',  // Updated to latest stable model (excellent for coding)
       max_tokens: 4000,
       messages: userMessages.map(m => ({ 
         role: m.role === 'assistant' ? 'assistant' : 'user',  
