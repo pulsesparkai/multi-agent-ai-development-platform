@@ -3,6 +3,9 @@ import { getAuthData } from "~encore/auth";
 import db from "../db";
 import { getUserApiKey } from "./keys";
 
+// Import Anthropic SDK
+import Anthropic from '@anthropic-ai/sdk';
+
 function generateId(): string {
   return Math.random().toString(36).substr(2, 9);
 }
@@ -216,84 +219,69 @@ async function callOpenAI(apiKey: string, messages: ChatMessage[], model: string
 
 async function callAnthropic(apiKey: string, messages: ChatMessage[], model: string): Promise<string> {
   try {
+    // Initialize Anthropic client with API key
+    const anthropic = new Anthropic({
+      apiKey: apiKey,
+    });
+
     const systemMessage = messages.find(m => m.role === 'system')?.content;
     const userMessages = messages.filter(m => m.role !== 'system');
 
-    const requestBody: any = {
-      model: model || 'claude-4-sonnet-20250815',  // Latest Claude 4 Sonnet (best for coding)
-      max_tokens: 4000,
-      messages: userMessages.map(m => ({ 
-        role: m.role === 'assistant' ? 'assistant' : 'user',  
-        content: m.content 
-      })),
-    };
+    const modelToUse = model || 'claude-4-sonnet-20250815';
 
-    if (systemMessage) {
-      requestBody.system = systemMessage;
-    }
-
-    console.log('Anthropic API request:', {
-      model: requestBody.model,
-      messageCount: requestBody.messages.length,
+    console.log('Anthropic SDK request:', {
+      model: modelToUse,
+      messageCount: userMessages.length,
       hasSystem: !!systemMessage
     });
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(requestBody),
+    // Use official Anthropic SDK
+    const response = await anthropic.messages.create({
+      model: modelToUse,
+      max_tokens: 4000,
+      system: systemMessage || undefined, // Only include system if exists
+      messages: userMessages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      })),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch {
-        errorData = { error: errorText };
-      }
-      
-      console.error('Anthropic API error details:', {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData,
-        model: requestBody.model,
-        url: response.url
-      });
-      
-      // More specific error messages
-      if (response.status === 400 && errorData.error?.message?.includes('model')) {
-        throw APIError.invalidArgument(`Invalid model: ${requestBody.model}. ${errorData.error.message}`);
-      }
-      if (response.status === 401) {
-        throw APIError.unauthenticated(`Invalid API key: ${errorData.error?.message || 'Authentication failed'}`);
-      }
-      if (response.status === 429) {
-        throw APIError.resourceExhausted(`Rate limit exceeded: ${errorData.error?.message || 'Too many requests'}`);
-      }
-      
-      throw APIError.internal(`Anthropic API error (${response.status}): ${JSON.stringify(errorData)}`);
-    }
-
-    const data = await response.json() as { content: Array<{ text: string }> };
-    const result = data.content[0]?.text || 'No response from AI';
+    const result = response.content[0]?.type === 'text' ? response.content[0].text : 'No response from AI';
     
-    console.log('Anthropic API success:', {
-      model: requestBody.model,
-      responseLength: result.length
+    console.log('Anthropic SDK success:', {
+      model: modelToUse,
+      responseLength: result.length,
+      usage: response.usage
     });
     
     return result;
   } catch (error) {
-    console.error('Anthropic call failed:', {
+    console.error('Anthropic SDK call failed:', {
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
-      errorType: error instanceof Error ? error.constructor.name : typeof error
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      anthropicError: (error as any)?.status ? {
+        status: (error as any).status,
+        message: (error as any).message,
+        type: (error as any).type
+      } : undefined
     });
+
+    // Handle Anthropic-specific errors
+    if ((error as any)?.status) {
+      const anthropicError = error as any;
+      if (anthropicError.status === 400) {
+        throw APIError.invalidArgument(`Anthropic API error: ${anthropicError.message}`);
+      }
+      if (anthropicError.status === 401) {
+        throw APIError.unauthenticated(`Invalid Anthropic API key: ${anthropicError.message}`);
+      }
+      if (anthropicError.status === 429) {
+        throw APIError.resourceExhausted(`Anthropic rate limit exceeded: ${anthropicError.message}`);
+      }
+      throw APIError.internal(`Anthropic API error (${anthropicError.status}): ${anthropicError.message}`);
+    }
+    
     throw error instanceof APIError ? error : APIError.internal('Failed to call Anthropic API');
   }
 }

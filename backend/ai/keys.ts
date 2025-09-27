@@ -3,6 +3,7 @@ import { getAuthData } from "~encore/auth";
 import { secret } from "encore.dev/config";
 import db from "../db";
 import crypto from "crypto";
+import Anthropic from '@anthropic-ai/sdk';
 
 function generateId(): string {
   return Math.random().toString(36).substr(2, 9);
@@ -43,28 +44,20 @@ async function testAPIKeyConnectivity(provider: string, apiKey: string): Promise
   try {
     switch(provider) {
       case 'anthropic':
-        const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json'
-          },
-          body: JSON.stringify({
+        try {
+          const anthropic = new Anthropic({ apiKey });
+          const response = await anthropic.messages.create({
             model: 'claude-4-sonnet-20250815',
             max_tokens: 10,
             messages: [{ role: 'user', content: testPrompt }]
-          })
-        });
-        
-        if (!anthropicResponse.ok) {
-          const error = await anthropicResponse.json();
+          });
+          return { success: true };
+        } catch (error: any) {
           return { 
             success: false, 
-            error: (error as any).error?.message || `HTTP ${anthropicResponse.status}` 
+            error: error.message || `HTTP ${error.status || 'Unknown'}` 
           };
         }
-        return { success: true };
         
       case 'openai':
         const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
