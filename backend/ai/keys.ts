@@ -51,7 +51,7 @@ async function testAPIKeyConnectivity(provider: string, apiKey: string): Promise
             'content-type': 'application/json'
           },
           body: JSON.stringify({
-            model: 'claude-3-5-haiku-20241022',
+            model: 'claude-4-1-opus-20250812',
             max_tokens: 10,
             messages: [{ role: 'user', content: testPrompt }]
           })
