@@ -47,7 +47,7 @@ async function testAPIKeyConnectivity(provider: string, apiKey: string): Promise
         try {
           const anthropic = new Anthropic({ apiKey });
           const response = await anthropic.messages.create({
-            model: 'claude-4-sonnet-20250815',
+            model: 'claude-3-5-sonnet-20241022',
             max_tokens: 10,
             messages: [{ role: 'user', content: testPrompt }]
           });
