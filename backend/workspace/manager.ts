@@ -6,114 +6,118 @@ import { applyFileChangesInternal } from "./filesystem";
 import { startBuildInternal, startPreviewInternal } from "./build";
 import { wsManager } from "../realtime/websocket";
 
+// Internal function for use by other services (not exposed as API)
+export async function executeAIActionInternal(req: AIActionRequest & { userID: string }): Promise<AIActionResult> {
+  // Verify project ownership
+  const project = await db.queryRow`
+    SELECT id FROM projects
+    WHERE id = ${req.projectId} AND user_id = ${req.userID}
+  `;
+
+  if (!project) {
+    throw new Error("project not found");
+  }
+
+  try {
+    const result: AIActionResult = { success: true };
+
+    switch (req.action) {
+      case 'generate_files':
+      case 'modify_files':
+        if (req.payload.files) {
+          const changes = req.payload.files.map(file => ({
+            operation: 'create' as const,
+            filePath: file.path,
+            content: file.content
+          }));
+
+          // Broadcast file creation updates via WebSocket
+          for (const change of changes) {
+            wsManager.broadcastFileUpdate(req.projectId, 'created', change.filePath, change.content);
+          }
+
+          const fileResult = await applyFileChangesInternal({
+            projectId: req.projectId,
+            changes,
+            source: req.source,
+            sessionId: req.sessionId
+          });
+
+          result.changes = fileResult.appliedChanges;
+          
+          if (fileResult.errors.length > 0) {
+            result.error = `Some files failed to apply: ${fileResult.errors.map(e => e.error).join(', ')}`;
+          }
+        }
+        break;
+
+      case 'build_project':
+        // Broadcast build started
+        wsManager.broadcastBuildUpdate(req.projectId, 'started', 'building', '');
+        
+        const buildStatus = await startBuildInternal({
+          projectId: req.projectId,
+          command: req.payload.buildCommand,
+          installDependencies: true
+        });
+        result.buildStatus = buildStatus;
+        break;
+
+      case 'start_preview':
+        const previewServer = await startPreviewInternal({
+          projectId: req.projectId,
+          framework: req.payload.framework as any
+        });
+        result.previewUrl = previewServer.url;
+        
+        // Broadcast preview ready
+        if (previewServer.url) {
+          wsManager.broadcastPreviewReady(req.projectId, previewServer.url);
+        }
+        break;
+
+      default:
+        throw new Error(`Unknown action: ${req.action}`);
+    }
+
+    // Track action in history
+    await db.exec`
+      INSERT INTO workspace_actions (id, project_id, action, payload, source, session_id, result)
+      VALUES (
+        gen_random_uuid(), ${req.projectId}, ${req.action}, 
+        ${JSON.stringify(req.payload)}::jsonb, ${req.source}, ${req.sessionId},
+        ${JSON.stringify(result)}::jsonb
+      )
+    `;
+
+    return result;
+
+  } catch (error) {
+    const errorResult: AIActionResult = {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+
+    // Track failed action
+    await db.exec`
+      INSERT INTO workspace_actions (id, project_id, action, payload, source, session_id, result)
+      VALUES (
+        gen_random_uuid(), ${req.projectId}, ${req.action}, 
+        ${JSON.stringify(req.payload)}::jsonb, ${req.source}, ${req.sessionId},
+        ${JSON.stringify(errorResult)}::jsonb
+      )
+    `;
+
+    return errorResult;
+  }
+}
+
 // Execute AI-generated actions (from chat or multi-agent)
 export const executeAIAction = api<AIActionRequest, AIActionResult>(
   { auth: true, expose: true, method: "POST", path: "/workspace/:projectId/ai-action" },
   async (req) => {
     const auth = getAuthData()!;
-
-    // Verify project ownership
-    const project = await db.queryRow`
-      SELECT id FROM projects
-      WHERE id = ${req.projectId} AND user_id = ${auth.userID}
-    `;
-
-    if (!project) {
-      throw APIError.notFound("project not found");
-    }
-
-    try {
-      const result: AIActionResult = { success: true };
-
-      switch (req.action) {
-        case 'generate_files':
-        case 'modify_files':
-          if (req.payload.files) {
-            const changes = req.payload.files.map(file => ({
-              operation: 'create' as const,
-              filePath: file.path,
-              content: file.content
-            }));
-
-            // Broadcast file creation updates via WebSocket
-            for (const change of changes) {
-              wsManager.broadcastFileUpdate(req.projectId, 'created', change.filePath, change.content);
-            }
-
-            const fileResult = await applyFileChangesInternal({
-              projectId: req.projectId,
-              changes,
-              source: req.source,
-              sessionId: req.sessionId
-            });
-
-            result.changes = fileResult.appliedChanges;
-            
-            if (fileResult.errors.length > 0) {
-              result.error = `Some files failed to apply: ${fileResult.errors.map(e => e.error).join(', ')}`;
-            }
-          }
-          break;
-
-        case 'build_project':
-          // Broadcast build started
-          wsManager.broadcastBuildUpdate(req.projectId, 'started', 'building', '');
-          
-          const buildStatus = await startBuildInternal({
-            projectId: req.projectId,
-            command: req.payload.buildCommand,
-            installDependencies: true
-          });
-          result.buildStatus = buildStatus;
-          break;
-
-        case 'start_preview':
-          const previewServer = await startPreviewInternal({
-            projectId: req.projectId,
-            framework: req.payload.framework as any
-          });
-          result.previewUrl = previewServer.url;
-          
-          // Broadcast preview ready
-          if (previewServer.url) {
-            wsManager.broadcastPreviewReady(req.projectId, previewServer.url);
-          }
-          break;
-
-        default:
-          throw new Error(`Unknown action: ${req.action}`);
-      }
-
-      // Track action in history
-      await db.exec`
-        INSERT INTO workspace_actions (id, project_id, action, payload, source, session_id, result)
-        VALUES (
-          gen_random_uuid(), ${req.projectId}, ${req.action}, 
-          ${JSON.stringify(req.payload)}::jsonb, ${req.source}, ${req.sessionId},
-          ${JSON.stringify(result)}::jsonb
-        )
-      `;
-
-      return result;
-
-    } catch (error) {
-      const errorResult: AIActionResult = {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-
-      // Track failed action
-      await db.exec`
-        INSERT INTO workspace_actions (id, project_id, action, payload, source, session_id, result)
-        VALUES (
-          gen_random_uuid(), ${req.projectId}, ${req.action}, 
-          ${JSON.stringify(req.payload)}::jsonb, ${req.source}, ${req.sessionId},
-          ${JSON.stringify(errorResult)}::jsonb
-        )
-      `;
-
-      return errorResult;
-    }
+    return executeAIActionInternal({ ...req, userID: auth.userID });
   }
 );
 

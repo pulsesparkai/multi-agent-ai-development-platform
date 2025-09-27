@@ -230,10 +230,10 @@ Current project: ${project.name}`;
             
             // Import workspace manager
             console.log('Importing workspace manager...');
-            const { executeAIAction } = await import('../workspace/manager');
+            const { executeAIActionInternal } = await import('../workspace/manager');
             
             console.log('Executing AI action...');
-            const result = await executeAIAction({
+            const result = await executeAIActionInternal({
               projectId: req.projectId,
               sessionId,
               action: 'generate_files',
@@ -243,7 +243,8 @@ Current project: ${project.name}`;
                   content: op.content
                 }))
               },
-              source: 'ai_chat'
+              source: 'ai_chat',
+              userID: auth.userID
             });
 
             if (result.success) {
@@ -272,12 +273,13 @@ Current project: ${project.name}`;
                 // Add small delay to ensure files are written to disk
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                const buildResult = await executeAIAction({
+                const buildResult = await executeAIActionInternal({
                   projectId: req.projectId,
                   sessionId,
                   action: 'build_project',
                   payload: {},
-                  source: 'ai_chat'
+                  source: 'ai_chat',
+                  userID: auth.userID
                 });
 
                 response.buildStarted = buildResult.success;
@@ -301,12 +303,13 @@ Current project: ${project.name}`;
                 // Add delay to ensure build is complete before starting preview
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 
-                const previewResult = await executeAIAction({
+                const previewResult = await executeAIActionInternal({
                   projectId: req.projectId,
                   sessionId,
                   action: 'start_preview',
                   payload: { framework: 'vite' }, // Default to vite for better compatibility
-                  source: 'ai_chat'
+                  source: 'ai_chat',
+                  userID: auth.userID
                 });
 
                 if (previewResult.success) {
@@ -352,8 +355,10 @@ Current project: ${project.name}`;
         provider: req?.provider,
         errorType: error instanceof Error ? error.constructor.name : typeof error,
         errorCode: (error as any)?.code,
-        errorStatus: (error as any)?.status
+        errorStatus: (error as any)?.status,
+        fullError: error
       });
+      console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
       console.error('=== End Enhanced Chat Error ===');
       
       if (error instanceof APIError) {
