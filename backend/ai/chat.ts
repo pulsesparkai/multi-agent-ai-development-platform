@@ -171,7 +171,7 @@ export async function callAI(provider: string, apiKey: string, messages: ChatMes
     case 'openai':
       return await callOpenAI(apiKey, messages, model || 'gpt-4');
     case 'anthropic':
-      return await callAnthropic(apiKey, messages, model || 'claude-3-5-sonnet-20241022');
+      return await callAnthropic(apiKey, messages, model || 'claude-4-1-opus-20250812');
     case 'google':
       return await callGoogle(apiKey, messages, model || 'gemini-pro');
     case 'xai':
@@ -220,7 +220,7 @@ async function callAnthropic(apiKey: string, messages: ChatMessage[], model: str
     const userMessages = messages.filter(m => m.role !== 'system');
 
     const requestBody: any = {
-      model: model || 'claude-3-5-sonnet-20241022',  // Updated to latest stable model (excellent for coding)
+      model: model || 'claude-4-1-opus-20250812',  // Updated to latest Opus 4.1 (best for coding as of Sep 2025)
       max_tokens: 4000,
       messages: userMessages.map(m => ({ 
         role: m.role === 'assistant' ? 'assistant' : 'user',  

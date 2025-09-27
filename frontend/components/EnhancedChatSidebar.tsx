@@ -54,7 +54,7 @@ interface EnhancedChatResponse {
 export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMultiAgent }: EnhancedChatSidebarProps) {
   const [message, setMessage] = useState('');
   const [provider, setProvider] = useState<'openai' | 'anthropic' | 'google' | 'xai'>('anthropic');
-  const [model, setModel] = useState('claude-3-5-sonnet-20241022');
+  const [model, setModel] = useState('claude-4-1-opus-20250812');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [autoApply, setAutoApply] = useState(config.defaultAutoApply);
   const [autoBuild, setAutoBuild] = useState(config.defaultAutoBuild);
@@ -438,7 +438,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
             <Select value={provider} onValueChange={(value: any) => {
               setProvider(value);
               // Set default model for each provider
-              if (value === 'anthropic') setModel('claude-3-5-sonnet-20241022');
+              if (value === 'anthropic') setModel('claude-4-1-opus-20250812');
               else if (value === 'openai') setModel('gpt-4');
               else if (value === 'google') setModel('gemini-pro');
               else if (value === 'xai') setModel('grok-beta');
@@ -463,7 +463,8 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Best for Coding)</SelectItem>
+                  <SelectItem value="claude-4-1-opus-20250812">Claude 4.1 Opus (Best for Coding)</SelectItem>
+                  <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</SelectItem>
                   <SelectItem value="claude-3-5-haiku-20241022">Claude 3.5 Haiku (Fastest)</SelectItem>
                   <SelectItem value="claude-3-opus-20240229">Claude 3 Opus (Legacy)</SelectItem>
                 </SelectContent>
