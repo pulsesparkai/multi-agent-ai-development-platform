@@ -432,7 +432,7 @@ export default function EnhancedChatSidebar({ projectId, onClose, onSwitchToMult
           <div>
             <Label htmlFor="provider" className="text-xs">AI Provider</Label>
             <Select value={provider} onValueChange={(value: any) => setProvider(value)}>
-              <SelectTrigger className="h-8">
+              <SelectTrigger id="provider" className="h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

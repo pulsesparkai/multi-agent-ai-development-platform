@@ -120,7 +120,7 @@ export default function DeploymentDialog({ projectId, projectName }: DeploymentD
           <div className="space-y-2">
             <Label htmlFor="provider">Deployment Provider</Label>
             <Select value={provider} onValueChange={(value: DeploymentProvider) => setProvider(value)}>
-              <SelectTrigger>
+              <SelectTrigger id="provider">
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
               <SelectContent>
