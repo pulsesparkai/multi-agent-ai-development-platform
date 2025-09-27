@@ -176,8 +176,7 @@ export default function SimpleGenerator({ onClose }: SimpleGeneratorProps) {
                     )}
                     {provider === 'anthropic' && (
                       <>
-                        <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
-                        <SelectItem value="claude-3-sonnet-20240229">Claude 3 Sonnet</SelectItem>
+                        <SelectItem value="claude-4-sonnet">Claude 4 Sonnet</SelectItem>
                       </>
                     )}
                     {provider === 'xai' && (

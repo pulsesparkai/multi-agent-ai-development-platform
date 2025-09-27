@@ -179,7 +179,7 @@ async function createDefaultAgents(teamId: string) {
       name: "Code Generator",
       role: "coder" as const,
       provider: "anthropic" as const,
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-4-sonnet",
       systemPrompt: "You are a code generation agent specialized in writing clean, efficient, and well-documented code. Follow best practices, implement proper error handling, and ensure code quality. Generate complete, functional implementations based on the provided specifications.",
       executionOrder: 2,
       canAdaptRole: true,
