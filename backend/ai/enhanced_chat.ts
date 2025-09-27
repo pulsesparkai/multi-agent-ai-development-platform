@@ -350,12 +350,27 @@ Current project: ${project.name}`;
         userId: getAuthData()?.userID,
         projectId: req?.projectId,
         provider: req?.provider,
-        errorType: error instanceof Error ? error.constructor.name : typeof error
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+        errorCode: (error as any)?.code,
+        errorStatus: (error as any)?.status
       });
       console.error('=== End Enhanced Chat Error ===');
       
       if (error instanceof APIError) {
         throw error;
+      }
+      
+      // More specific error handling
+      if (error instanceof Error) {
+        if (error.message.includes('Invalid model')) {
+          throw APIError.invalidArgument(error.message);
+        }
+        if (error.message.includes('Authentication') || error.message.includes('Invalid API key')) {
+          throw APIError.unauthenticated(error.message);
+        }
+        if (error.message.includes('Rate limit')) {
+          throw APIError.resourceExhausted(error.message);
+        }
       }
       
       throw APIError.internal('Failed to process enhanced chat request', error as Error);

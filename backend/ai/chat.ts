@@ -171,7 +171,7 @@ export async function callAI(provider: string, apiKey: string, messages: ChatMes
     case 'openai':
       return await callOpenAI(apiKey, messages, model || 'gpt-4');
     case 'anthropic':
-      return await callAnthropic(apiKey, messages, model || 'claude-4-1-opus-20250812');
+      return await callAnthropic(apiKey, messages, model || 'claude-3-5-sonnet-20241022');
     case 'google':
       return await callGoogle(apiKey, messages, model || 'gemini-pro');
     case 'xai':
@@ -220,7 +220,7 @@ async function callAnthropic(apiKey: string, messages: ChatMessage[], model: str
     const userMessages = messages.filter(m => m.role !== 'system');
 
     const requestBody: any = {
-      model: model || 'claude-4-1-opus-20250812',  // Latest Opus 4.1 (best for coding as of Sep 2025)
+      model: model || 'claude-3-5-sonnet-20241022',  // Use verified working model
       max_tokens: 4000,
       messages: userMessages.map(m => ({ 
         role: m.role === 'assistant' ? 'assistant' : 'user',  
@@ -231,6 +231,12 @@ async function callAnthropic(apiKey: string, messages: ChatMessage[], model: str
     if (systemMessage) {
       requestBody.system = systemMessage;
     }
+
+    console.log('Anthropic API request:', {
+      model: requestBody.model,
+      messageCount: requestBody.messages.length,
+      hasSystem: !!systemMessage
+    });
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -243,15 +249,51 @@ async function callAnthropic(apiKey: string, messages: ChatMessage[], model: str
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: response.statusText }));
-      console.error('Anthropic API error:', errorData);
-      throw APIError.internal(`Anthropic API error: ${JSON.stringify(errorData)}`);
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: errorText };
+      }
+      
+      console.error('Anthropic API error details:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+        model: requestBody.model,
+        url: response.url
+      });
+      
+      // More specific error messages
+      if (response.status === 400 && errorData.error?.message?.includes('model')) {
+        throw APIError.invalidArgument(`Invalid model: ${requestBody.model}. ${errorData.error.message}`);
+      }
+      if (response.status === 401) {
+        throw APIError.unauthenticated(`Invalid API key: ${errorData.error?.message || 'Authentication failed'}`);
+      }
+      if (response.status === 429) {
+        throw APIError.resourceExhausted(`Rate limit exceeded: ${errorData.error?.message || 'Too many requests'}`);
+      }
+      
+      throw APIError.internal(`Anthropic API error (${response.status}): ${JSON.stringify(errorData)}`);
     }
 
     const data = await response.json() as { content: Array<{ text: string }> };
-    return data.content[0]?.text || 'No response from AI';
+    const result = data.content[0]?.text || 'No response from AI';
+    
+    console.log('Anthropic API success:', {
+      model: requestBody.model,
+      responseLength: result.length
+    });
+    
+    return result;
   } catch (error) {
-    console.error('Anthropic call failed:', error);
+    console.error('Anthropic call failed:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      errorType: error instanceof Error ? error.constructor.name : typeof error
+    });
     throw error instanceof APIError ? error : APIError.internal('Failed to call Anthropic API');
   }
 }
