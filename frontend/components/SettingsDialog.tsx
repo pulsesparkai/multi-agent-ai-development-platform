@@ -106,7 +106,7 @@ export default function SettingsDialog({ open, onOpenChange }: SettingsDialogPro
     {
       id: 'anthropic',
       name: 'Anthropic',
-      description: 'Claude 3 models',
+      description: 'Claude 3.5 Sonnet models',
       placeholder: 'sk-ant-...',
     },
     {
