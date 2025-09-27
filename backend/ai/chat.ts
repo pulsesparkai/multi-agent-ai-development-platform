@@ -174,7 +174,7 @@ export async function callAI(provider: string, apiKey: string, messages: ChatMes
     case 'openai':
       return await callOpenAI(apiKey, messages, model || 'gpt-4');
     case 'anthropic':
-      return await callAnthropic(apiKey, messages, model || 'claude-4-sonnet-20250815');
+      return await callAnthropic(apiKey, messages, model || 'claude-3-5-sonnet-20241022');
     case 'google':
       return await callGoogle(apiKey, messages, model || 'gemini-pro');
     case 'xai':
@@ -227,7 +227,7 @@ async function callAnthropic(apiKey: string, messages: ChatMessage[], model: str
     const systemMessage = messages.find(m => m.role === 'system')?.content;
     const userMessages = messages.filter(m => m.role !== 'system');
 
-    const modelToUse = model || 'claude-4-sonnet-20250815';
+    const modelToUse = model || 'claude-3-5-sonnet-20241022';
 
     console.log('Anthropic SDK request:', {
       model: modelToUse,
